@@ -40,4 +40,7 @@ func WriteSummary(w io.Writer, result probe.RunResult) {
 	for _, hint := range result.Shape.Hints {
 		fmt.Fprintf(w, "  Hint: %s\n", hint)
 	}
+	if result.Runtime != nil {
+		WriteRuntime(w, *result.Runtime)
+	}
 }

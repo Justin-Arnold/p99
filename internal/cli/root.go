@@ -15,6 +15,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "http":
 		return runHTTP(args[1:], stdout, stderr)
+	case "watch":
+		return runWatch(args[1:], stdout, stderr)
+	case "profile":
+		return runProfile(args[1:], stdout, stderr)
+	case "runtime":
+		return runRuntime(args[1:], stdout, stderr)
 	case "report":
 		return runReport(args[1:], stdout, stderr)
 	case "compare":
@@ -32,6 +38,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 func usage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  p99 http [flags] URL")
+	fmt.Fprintln(w, "  p99 watch [flags] URL")
+	fmt.Fprintln(w, "  p99 profile [flags] PPROF_URL")
+	fmt.Fprintln(w, "  p99 runtime [flags] BASE_URL")
 	fmt.Fprintln(w, "  p99 report run.json")
 	fmt.Fprintln(w, "  p99 compare [flags] before.json after.json")
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/justin/p99/internal/compare"
 	"github.com/justin/p99/internal/output"
 	"github.com/justin/p99/internal/probe"
+	"github.com/justin/p99/internal/runtimesignal"
 	"github.com/justin/p99/internal/timeutil"
 )
 
@@ -51,6 +52,7 @@ func (s *statusFlags) Set(v string) error {
 func runHTTP(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("http", flag.ContinueOnError)
 	var durationText, warmupText, timeoutText, outputPath, bodyFile, p99UnderText, errorRateUnderText string
+	var runtimeURL, runtimeTimeoutText string
 	headers := headerFlags{}
 	statuses := statusFlags{}
 	cfg := probe.HTTPConfig{Method: http.MethodGet, Duration: 10 * time.Second, RPS: 1, Concurrency: 1, Timeout: 10 * time.Second, SlowSamples: 10}
@@ -69,11 +71,14 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 	fs.IntVar(&cfg.SlowSamples, "slow-samples", 10, "number of slow request samples to retain")
 	fs.StringVar(&p99UnderText, "p99-under", "", "fail if p99 is above duration")
 	fs.StringVar(&errorRateUnderText, "error-rate-under", "", "fail if error rate is above percent, e.g. 0.5")
+	fs.StringVar(&runtimeURL, "runtime", "", "Go runtime base URL for correlation, e.g. http://localhost:8080")
+	fs.StringVar(&runtimeTimeoutText, "runtime-timeout", "5s", "runtime endpoint timeout")
 
 	valueFlags := map[string]bool{
 		"duration": true, "rps": true, "concurrency": true, "warmup": true, "timeout": true,
 		"method": true, "H": true, "header": true, "body-file": true, "status": true,
 		"output": true, "out": true, "slow-samples": true, "p99-under": true, "error-rate-under": true,
+		"runtime": true, "runtime-timeout": true,
 	}
 	if err := parse(fs, args, valueFlags); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -120,6 +125,14 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
+	runtimeTimeout := 5 * time.Second
+	if runtimeTimeoutText != "" {
+		runtimeTimeout, err = timeutil.ParseDuration(runtimeTimeoutText)
+		if err != nil {
+			fmt.Fprintf(stderr, "invalid runtime-timeout: %v\n", err)
+			return 2
+		}
+	}
 
 	var body []byte
 	if bodyFile != "" {
@@ -131,7 +144,22 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 		cfg.RequestBodySize = len(body)
 	}
 
-	result, err := probe.HTTPRunner{Config: cfg, Body: body}.Run(context.Background())
+	var result probe.RunResult
+	if runtimeURL != "" {
+		before, after, err := collectRuntimeWindow(context.Background(), runtimeURL, runtimeTimeout, func() error {
+			var runErr error
+			result, runErr = probe.HTTPRunner{Config: cfg, Body: body}.Run(context.Background())
+			return runErr
+		})
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		correlation := runtimesignal.Correlate(before, after)
+		result.Runtime = &correlation
+	} else {
+		result, err = probe.HTTPRunner{Config: cfg, Body: body}.Run(context.Background())
+	}
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2

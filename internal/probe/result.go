@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/justin/p99/internal/latency"
+	"github.com/justin/p99/internal/runtimesignal"
 )
 
 const ResultVersion = 1
@@ -24,13 +25,14 @@ type HTTPConfig struct {
 }
 
 type RunResult struct {
-	Version     int                  `json:"version"`
-	Config      HTTPConfig           `json:"config"`
-	StartedAt   time.Time            `json:"started_at"`
-	EndedAt     time.Time            `json:"ended_at"`
-	Summary     latency.Summary      `json:"summary"`
-	Histogram   []latency.Bucket     `json:"histogram"`
-	SlowSamples []latency.SlowSample `json:"slow_samples,omitempty"`
-	Errors      map[string]int       `json:"error_breakdown,omitempty"`
-	Shape       latency.Shape        `json:"shape"`
+	Version     int                        `json:"version"`
+	Config      HTTPConfig                 `json:"config"`
+	StartedAt   time.Time                  `json:"started_at"`
+	EndedAt     time.Time                  `json:"ended_at"`
+	Summary     latency.Summary            `json:"summary"`
+	Histogram   []latency.Bucket           `json:"histogram"`
+	SlowSamples []latency.SlowSample       `json:"slow_samples,omitempty"`
+	Errors      map[string]int             `json:"error_breakdown,omitempty"`
+	Shape       latency.Shape              `json:"shape"`
+	Runtime     *runtimesignal.Correlation `json:"runtime,omitempty"`
 }
