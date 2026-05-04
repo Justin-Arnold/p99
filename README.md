@@ -54,6 +54,117 @@ p99 http \
 
 By default, any 2xx or 3xx response is treated as success. If `--status` is supplied, only those status codes are treated as success.
 
+## Live watch
+
+Watch mode runs repeated probe windows and redraws a compact terminal summary after each window:
+
+```sh
+p99 watch --rps 50 --window 5s --concurrency 10 https://api.example.com/search
+```
+
+For scripting or tests, run a fixed number of windows and disable terminal clearing:
+
+```sh
+p99 watch --window 5s --iterations 3 --clear=false https://api.example.com/search
+```
+
+Watch mode reports the same core latency and error signals as `p99 http`, but it is optimized for observing the tail while a service is changing.
+
+## Go pprof capture
+
+Capture a Go CPU profile from a pprof endpoint:
+
+```sh
+p99 profile --seconds 30 --output cpu.pprof http://localhost:8080/debug/pprof/profile
+```
+
+By default, `p99 profile` also tries to run:
+
+```sh
+go tool pprof -top
+```
+
+against the saved profile. If the Go toolchain is not available, the profile is still saved and the command reports that the top view was unavailable.
+
+Disable the top view:
+
+```sh
+p99 profile --top=false --output cpu.pprof http://localhost:8080/debug/pprof/profile
+```
+
+Run an HTTP probe while the profile capture is active:
+
+```sh
+p99 profile \
+  --seconds 30 \
+  --output cpu.pprof \
+  --probe https://api.example.com/search \
+  --probe-rps 100 \
+  --probe-concurrency 20 \
+  http://localhost:8080/debug/pprof/profile
+```
+
+This prints the profile capture details and the correlated HTTP latency summary. It does not claim that a CPU hot spot caused a latency spike; it puts the signals next to each other so the next investigation step is grounded.
+
+## Go runtime signal correlation
+
+`p99` can collect Go runtime signals before and after a measured window and print the movement beside latency or profile results.
+
+Run a standalone runtime correlation window:
+
+```sh
+p99 runtime --duration 10s http://localhost:8080
+```
+
+Correlate runtime movement with an HTTP probe:
+
+```sh
+p99 http \
+  --duration 30s \
+  --rps 100 \
+  --concurrency 20 \
+  --runtime http://localhost:8080 \
+  https://api.example.com/search
+```
+
+Use the same runtime correlation in watch mode:
+
+```sh
+p99 watch --window 5s --runtime http://localhost:8080 https://api.example.com/search
+```
+
+Or while capturing a CPU profile:
+
+```sh
+p99 profile \
+  --seconds 30 \
+  --runtime http://localhost:8080 \
+  --probe https://api.example.com/search \
+  http://localhost:8080/debug/pprof/profile
+```
+
+Runtime collection reads common Go debug endpoints from the base URL:
+
+- `/debug/vars` for expvar `memstats`
+- `/debug/pprof/goroutine?debug=1` for goroutine count
+- `/debug/pprof/mutex?debug=1` for mutex profile sample presence
+- `/debug/pprof/block?debug=1` for block profile sample presence
+
+It reports:
+
+- goroutine count
+- heap allocation, heap in-use, heap system bytes
+- GC cycles
+- GC pause total and last GC pause
+- mutex profile samples
+- block profile samples
+- scheduler pause distribution when exported through expvar-compatible runtime metrics
+- DB pool wait counters when the service exports compatible wait count and duration fields
+
+Some signals require the target service to opt in. `net/http/pprof` exposes pprof handlers. `expvar` exposes `memstats`. Mutex and block profiles are only useful when the service enables runtime profiling with `runtime.SetMutexProfileFraction` or `runtime.SetBlockProfileRate`. DB pool waits are not a standard pprof signal; `p99` reads common expvar-style fields when an application exports them.
+
+Runtime hints are deliberately conservative. They describe signals that moved during the same window as tail latency, not root cause.
+
 ## Thresholds
 
 Thresholds make `p99` useful in CI. A violated threshold exits non-zero.
@@ -124,6 +235,7 @@ A run file contains:
 - bounded slow request samples
 - error breakdown
 - shape analysis
+- runtime correlation data when `--runtime` is used
 
 Durations in JSON are stored as nanoseconds.
 
@@ -147,7 +259,8 @@ internal/latency/
 internal/output/
 internal/compare/
 internal/errors/
+internal/profile/
 internal/timeutil/
 ```
 
-Future work is expected to build on these boundaries: live watch mode, pprof correlation, Go runtime signal correlation, span/dependency input, and additional export formats.
+Future work is expected to build on these boundaries: Go runtime signal correlation, span/dependency input, richer profile analysis, and additional export formats.
