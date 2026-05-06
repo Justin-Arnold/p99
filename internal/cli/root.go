@@ -21,6 +21,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runProfile(args[1:], stdout, stderr)
 	case "runtime":
 		return runRuntime(args[1:], stdout, stderr)
+	case "spans":
+		return runSpans(args[1:], stdout, stderr)
 	case "report":
 		return runReport(args[1:], stdout, stderr)
 	case "compare":
@@ -41,6 +43,7 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  p99 watch [flags] URL")
 	fmt.Fprintln(w, "  p99 profile [flags] PPROF_URL")
 	fmt.Fprintln(w, "  p99 runtime [flags] BASE_URL")
+	fmt.Fprintln(w, "  p99 spans [flags] traces.json")
 	fmt.Fprintln(w, "  p99 report run.json")
 	fmt.Fprintln(w, "  p99 compare [flags] before.json after.json")
 }

@@ -165,6 +165,53 @@ Some signals require the target service to opt in. `net/http/pprof` exposes ppro
 
 Runtime hints are deliberately conservative. They describe signals that moved during the same window as tail latency, not root cause.
 
+## Span and dependency timing
+
+`p99` can read OpenTelemetry-style span JSON and turn traces into route, service, and dependency latency summaries.
+
+```sh
+p99 spans traces.json
+```
+
+Write the analyzed report as JSON:
+
+```sh
+p99 spans traces.json --json-out span-report.json
+```
+
+Print JSON to stdout:
+
+```sh
+p99 spans traces.json --format json
+```
+
+The input can be an OTLP JSON export with `resourceSpans`, `scopeSpans`, and `spans`, or a flat JSON array of span objects. `p99` reads common OpenTelemetry fields:
+
+- `traceId`
+- `spanId`
+- `parentSpanId`
+- `name`
+- `kind`
+- `startTimeUnixNano`
+- `endTimeUnixNano`
+- `attributes`
+- `status`
+- resource `service.name`
+
+For each trace, `p99` uses the server span as the request span. If there is no server span, it falls back to a root span with no parent. Request latency is measured from that span duration.
+
+The report includes:
+
+- overall request latency percentiles
+- route latency percentiles and error counts
+- service latency percentiles
+- dependency summaries by database, RPC, peer service, or network target
+- bounded slow trace samples
+- top dependency spans inside each slow trace
+- conservative hints about strong dependency or segmentation signals
+
+Dependency time is computed from span durations and may overlap. It should be read as "time represented by dependency spans," not as exclusive wall-clock time.
+
 ## Thresholds
 
 Thresholds make `p99` useful in CI. A violated threshold exits non-zero.
@@ -260,7 +307,8 @@ internal/output/
 internal/compare/
 internal/errors/
 internal/profile/
+internal/spans/
 internal/timeutil/
 ```
 
-Future work is expected to build on these boundaries: Go runtime signal correlation, span/dependency input, richer profile analysis, and additional export formats.
+Future work is expected to build on these boundaries: richer profile analysis, additional export formats, and tighter integration between synthetic probe runs and trace/span input.
