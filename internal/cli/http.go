@@ -53,6 +53,7 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("http", flag.ContinueOnError)
 	var durationText, warmupText, timeoutText, outputPath, bodyFile, p99UnderText, errorRateUnderText string
 	var runtimeURL, runtimeTimeoutText string
+	var markdownOutput, prometheusOutput, otelOutput string
 	headers := headerFlags{}
 	statuses := statusFlags{}
 	cfg := probe.HTTPConfig{Method: http.MethodGet, Duration: 10 * time.Second, RPS: 1, Concurrency: 1, Timeout: 10 * time.Second, SlowSamples: 10}
@@ -73,12 +74,16 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&errorRateUnderText, "error-rate-under", "", "fail if error rate is above percent, e.g. 0.5")
 	fs.StringVar(&runtimeURL, "runtime", "", "Go runtime base URL for correlation, e.g. http://localhost:8080")
 	fs.StringVar(&runtimeTimeoutText, "runtime-timeout", "5s", "runtime endpoint timeout")
+	fs.StringVar(&markdownOutput, "markdown-output", "", "write Markdown report to path")
+	fs.StringVar(&prometheusOutput, "prometheus-output", "", "write Prometheus text metrics to path")
+	fs.StringVar(&otelOutput, "otel-output", "", "write OpenTelemetry metrics JSON to path")
 
 	valueFlags := map[string]bool{
 		"duration": true, "rps": true, "concurrency": true, "warmup": true, "timeout": true,
 		"method": true, "H": true, "header": true, "body-file": true, "status": true,
 		"output": true, "out": true, "slow-samples": true, "p99-under": true, "error-rate-under": true,
 		"runtime": true, "runtime-timeout": true,
+		"markdown-output": true, "prometheus-output": true, "otel-output": true,
 	}
 	if err := parse(fs, args, valueFlags); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -171,6 +176,23 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		fmt.Fprintf(stdout, "Wrote %s\n", outputPath)
+	}
+	for _, export := range []struct {
+		path   string
+		format string
+	}{
+		{markdownOutput, "markdown"},
+		{prometheusOutput, "prometheus"},
+		{otelOutput, "otel"},
+	} {
+		if export.path == "" {
+			continue
+		}
+		if err := writeFile(export.path, func(w io.Writer) error { return writeRunFormat(w, export.format, result) }); err != nil {
+			fmt.Fprintf(stderr, "write %s: %v\n", export.format, err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Wrote %s\n", export.path)
 	}
 
 	failures := compare.EvaluateRun(result, thresholds)

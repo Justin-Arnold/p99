@@ -40,6 +40,47 @@ func TestHTTPCommandWritesJSON(t *testing.T) {
 	}
 }
 
+func TestHTTPCommandWritesAdditionalExports(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	md := filepath.Join(dir, "run.md")
+	prom := filepath.Join(dir, "run.prom")
+	otel := filepath.Join(dir, "run.otlp.json")
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"http",
+		"--duration", "80ms",
+		"--rps", "20",
+		"--markdown-output", md,
+		"--prometheus-output", prom,
+		"--otel-output", otel,
+		srv.URL,
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, stderr.String())
+	}
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		{md, "# p99 report"},
+		{prom, "p99_http_requests_total"},
+		{otel, `"resourceMetrics"`},
+	} {
+		data, err := os.ReadFile(tc.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), tc.want) {
+			t.Fatalf("%s missing %q: %s", tc.path, tc.want, data)
+		}
+	}
+}
+
 func TestHTTPCommandThresholdExit(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(2 * time.Millisecond)
@@ -77,6 +118,39 @@ func TestReportCommand(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Requests: 3") {
 		t.Fatalf("unexpected report: %s", stdout.String())
+	}
+}
+
+func TestReportCommandExportsFormats(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.json")
+	if err := output.WriteJSONFile(path, probe.RunResult{
+		Version: probe.ResultVersion,
+		EndedAt: time.Unix(10, 0),
+		Summary: latency.Summary{
+			Count: 1,
+			P99:   10 * time.Millisecond,
+		},
+		Shape: latency.Shape{Kind: "stable"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		format string
+		want   string
+	}{
+		{"markdown", "# p99 report"},
+		{"prometheus", "p99_http_requests_total"},
+		{"otel", `"resourceMetrics"`},
+	} {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"report", "--format", tc.format, path}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("%s exit %d, stderr: %s", tc.format, code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), tc.want) {
+			t.Fatalf("%s output missing %q: %s", tc.format, tc.want, stdout.String())
+		}
 	}
 }
 

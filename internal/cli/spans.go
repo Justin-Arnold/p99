@@ -7,19 +7,22 @@ import (
 	"io"
 	"os"
 
-	"github.com/justin/p99/internal/output"
 	"github.com/justin/p99/internal/spans"
 )
 
 func runSpans(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("spans", flag.ContinueOnError)
 	var jsonOut string
+	var markdownOut, prometheusOut, otelOut string
 	var slowSamples int
 	var format string
 	fs.StringVar(&jsonOut, "json-out", "", "write span report JSON to path")
+	fs.StringVar(&markdownOut, "markdown-out", "", "write Markdown span report to path")
+	fs.StringVar(&prometheusOut, "prometheus-out", "", "write Prometheus text metrics to path")
+	fs.StringVar(&otelOut, "otel-out", "", "write OpenTelemetry metrics JSON to path")
 	fs.IntVar(&slowSamples, "slow-samples", 10, "number of slow traces to retain")
-	fs.StringVar(&format, "format", "text", "terminal output format: text or json")
-	if err := parse(fs, args, map[string]bool{"json-out": true, "slow-samples": true, "format": true}); err != nil {
+	fs.StringVar(&format, "format", "text", "terminal output format: text, json, markdown, prometheus, or otel")
+	if err := parse(fs, args, map[string]bool{"json-out": true, "markdown-out": true, "prometheus-out": true, "otel-out": true, "slow-samples": true, "format": true}); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
@@ -48,32 +51,30 @@ func runSpans(args []string, stdout, stderr io.Writer) int {
 	}
 	report := spans.Analyze(parsed, warnings, spans.AnalyzeOptions{Source: source, SlowSamples: slowSamples})
 
-	switch format {
-	case "text":
-		output.WriteSpanReport(stdout, report)
-	case "json":
-		if err := writeSpanJSON(stdout, report); err != nil {
-			fmt.Fprintf(stderr, "write span json: %v\n", err)
-			return 1
-		}
-	default:
-		fmt.Fprintf(stderr, "unknown format %q\n", format)
+	if err := writeSpanFormat(stdout, format, report); err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 
 	if jsonOut != "" {
-		f, err := os.Create(jsonOut)
-		if err != nil {
+		if err := writeFile(jsonOut, func(w io.Writer) error { return writeSpanFormat(w, "json", report) }); err != nil {
 			fmt.Fprintf(stderr, "write span json: %v\n", err)
 			return 1
 		}
-		if err := writeSpanJSON(f, report); err != nil {
-			_ = f.Close()
-			fmt.Fprintf(stderr, "write span json: %v\n", err)
-			return 1
+	}
+	for _, export := range []struct {
+		path   string
+		format string
+	}{
+		{markdownOut, "markdown"},
+		{prometheusOut, "prometheus"},
+		{otelOut, "otel"},
+	} {
+		if export.path == "" {
+			continue
 		}
-		if err := f.Close(); err != nil {
-			fmt.Fprintf(stderr, "write span json: %v\n", err)
+		if err := writeFile(export.path, func(w io.Writer) error { return writeSpanFormat(w, export.format, report) }); err != nil {
+			fmt.Fprintf(stderr, "write span %s: %v\n", export.format, err)
 			return 1
 		}
 	}

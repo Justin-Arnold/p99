@@ -40,6 +40,19 @@ Write a JSON run file:
 p99 http --duration 30s --rps 50 --output run.json https://api.example.com/search
 ```
 
+Write additional report and metrics formats from the same run:
+
+```sh
+p99 http \
+  --duration 30s \
+  --rps 50 \
+  --output run.json \
+  --markdown-output run.md \
+  --prometheus-output run.prom \
+  --otel-output run.otlp.json \
+  https://api.example.com/search
+```
+
 Use a method, headers, a request body, and an expected status:
 
 ```sh
@@ -179,10 +192,23 @@ Write the analyzed report as JSON:
 p99 spans traces.json --json-out span-report.json
 ```
 
-Print JSON to stdout:
+Print another format to stdout:
 
 ```sh
 p99 spans traces.json --format json
+p99 spans traces.json --format markdown
+p99 spans traces.json --format prometheus
+p99 spans traces.json --format otel
+```
+
+Write multiple span export artifacts:
+
+```sh
+p99 spans traces.json \
+  --json-out span-report.json \
+  --markdown-out span-report.md \
+  --prometheus-out span-report.prom \
+  --otel-out span-report.otlp.json
 ```
 
 The input can be an OTLP JSON export with `resourceSpans`, `scopeSpans`, and `spans`, or a flat JSON array of span objects. `p99` reads common OpenTelemetry fields:
@@ -236,6 +262,15 @@ Read a saved run file and print the terminal summary again:
 p99 report run.json
 ```
 
+Convert a saved run file to another format:
+
+```sh
+p99 report --format markdown run.json
+p99 report --format prometheus run.json
+p99 report --format otel run.json
+p99 report --format markdown --output run.md run.json
+```
+
 Compare two runs:
 
 ```sh
@@ -285,6 +320,17 @@ A run file contains:
 - runtime correlation data when `--runtime` is used
 
 Durations in JSON are stored as nanoseconds.
+
+## Export formats
+
+`p99` supports four output families:
+
+- JSON for lossless saved run/span reports
+- Markdown for human-readable reports
+- Prometheus text exposition for metrics artifacts
+- OpenTelemetry-compatible JSON metrics for OTLP-style ingestion
+
+Prometheus and OpenTelemetry exports are metric views of the run or span report. They preserve counts, error rates, latency quantiles, and selected breakdowns, but they are not intended to replace the JSON report when slow samples, histograms, runtime snapshots, or full span-analysis details matter.
 
 ## Development
 
