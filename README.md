@@ -254,6 +254,30 @@ Compare two saved runs and fail on a p99 regression:
 p99 compare before.json after.json --max-p99-regression 20%
 ```
 
+Compare budgets can also cover other tail percentiles, max latency, error rate, and request volume:
+
+```sh
+p99 compare before.json after.json \
+  --max-p95-regression 10% \
+  --max-p99-regression 20% \
+  --max-p999-regression 25% \
+  --max-max-regression 50% \
+  --max-error-rate-regression 10% \
+  --error-rate-under 0.5 \
+  --min-request-count 1000 \
+  --max-request-drop 5%
+```
+
+Absolute post-change latency budgets are supported too:
+
+```sh
+p99 compare before.json after.json \
+  --p95-under 150ms \
+  --p99-under 250ms \
+  --p999-under 750ms \
+  --max-under 2s
+```
+
 ## Reports
 
 Read a saved run file and print the terminal summary again:

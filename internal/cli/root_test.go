@@ -175,6 +175,56 @@ func TestCompareCommandThresholdExit(t *testing.T) {
 	}
 }
 
+func TestCompareCommandAdditionalThresholds(t *testing.T) {
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.json")
+	after := filepath.Join(dir, "after.json")
+	if err := output.WriteJSONFile(before, probe.RunResult{Summary: latency.Summary{
+		Count:     100,
+		P95:       100 * time.Millisecond,
+		P999:      150 * time.Millisecond,
+		Max:       200 * time.Millisecond,
+		ErrorRate: 0.01,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := output.WriteJSONFile(after, probe.RunResult{Summary: latency.Summary{
+		Count:     80,
+		P95:       140 * time.Millisecond,
+		P999:      220 * time.Millisecond,
+		Max:       300 * time.Millisecond,
+		ErrorRate: 0.03,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"compare",
+		"--max-p95-regression", "20%",
+		"--max-p999-regression", "20%",
+		"--max-max-regression", "20%",
+		"--max-error-rate-regression", "50%",
+		"--error-rate-under", "2",
+		"--min-request-count", "90",
+		"--max-request-drop", "10%",
+		"--p95-under", "120ms",
+		"--p999-under", "200ms",
+		"--max-under", "250ms",
+		before,
+		after,
+	}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("exit %d, stdout: %s stderr: %s", code, stdout.String(), stderr.String())
+	}
+	joined := stderr.String()
+	for _, want := range []string{"p95 regression", "p999 regression", "max regression", "error rate regression", "request count", "request count drop"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing %q in stderr: %s", want, joined)
+		}
+	}
+}
+
 func TestWatchCommandRunsOneWindow(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
