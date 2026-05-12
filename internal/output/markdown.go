@@ -3,6 +3,7 @@ package output
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/justin/p99/internal/probe"
 	"github.com/justin/p99/internal/spans"
@@ -27,6 +28,61 @@ func WriteMarkdown(w io.Writer, result probe.RunResult) {
 	fmt.Fprintf(w, "| p99 | %s |\n", timeutil.FormatDuration(s.P99))
 	fmt.Fprintf(w, "| p999 | %s |\n", timeutil.FormatDuration(s.P999))
 	fmt.Fprintf(w, "| max | %s |\n", timeutil.FormatDuration(s.Max))
+	if len(result.Errors) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "## Errors")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "| Class | Count |")
+		fmt.Fprintln(w, "| --- | ---: |")
+		for _, key := range sortedErrorKeys(result.Errors) {
+			fmt.Fprintf(w, "| %s | %d |\n", key, result.Errors[key])
+		}
+	}
+	if result.Shape.Kind != "" {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "## Shape Analysis")
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "- Kind: %s\n", result.Shape.Kind)
+		for _, note := range result.Shape.Notes {
+			fmt.Fprintf(w, "- Note: %s\n", note)
+		}
+		for _, hint := range result.Shape.Hints {
+			fmt.Fprintf(w, "- Hint: %s\n", hint)
+		}
+		for _, detail := range shapeExplanations(result.Shape.Kind) {
+			fmt.Fprintf(w, "- Detail: %s\n", detail)
+		}
+	}
+	if len(result.Histogram) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "## Histogram")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "| Bucket | Count | Cumulative |")
+		fmt.Fprintln(w, "| --- | ---: | ---: |")
+		var cumulative int
+		for _, bucket := range result.Histogram {
+			cumulative += bucket.Count
+			label := "+Inf"
+			if bucket.UpperBoundNS >= 0 {
+				label = "<= " + timeutil.FormatDuration(time.Duration(bucket.UpperBoundNS))
+			}
+			fmt.Fprintf(w, "| %s | %d | %d |\n", label, bucket.Count, cumulative)
+		}
+	}
+	if len(result.SlowSamples) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "## Slow Samples")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "| Timestamp | Latency | Status | Error | Request |")
+		fmt.Fprintln(w, "| --- | ---: | ---: | --- | --- |")
+		for _, sample := range result.SlowSamples {
+			status := ""
+			if sample.Status != 0 {
+				status = fmt.Sprint(sample.Status)
+			}
+			fmt.Fprintf(w, "| %s | %s | %s | %s | %s %s |\n", sample.Timestamp.Format(time.RFC3339), timeutil.FormatDuration(sample.Latency), status, sample.Error, sample.Method, sample.URL)
+		}
+	}
 	if result.Runtime != nil {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "## Runtime Signals")

@@ -286,6 +286,21 @@ Read a saved run file and print the terminal summary again:
 p99 report run.json
 ```
 
+Print a fuller saved-run report:
+
+```sh
+p99 report --details run.json
+```
+
+Individual detail sections can be requested when a compact report is better:
+
+```sh
+p99 report --histogram run.json
+p99 report --slow-samples run.json
+p99 report --shape run.json
+p99 report --runtime run.json
+```
+
 Convert a saved run file to another format:
 
 ```sh
@@ -294,6 +309,8 @@ p99 report --format prometheus run.json
 p99 report --format otel run.json
 p99 report --format markdown --output run.md run.json
 ```
+
+Markdown reports include the latency table, error breakdown, histogram buckets, slow samples, shape notes, and runtime section when present.
 
 Compare two runs:
 

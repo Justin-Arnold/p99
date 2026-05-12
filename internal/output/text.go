@@ -3,7 +3,6 @@ package output
 import (
 	"fmt"
 	"io"
-	"sort"
 
 	"github.com/justin/p99/internal/probe"
 	"github.com/justin/p99/internal/timeutil"
@@ -24,12 +23,7 @@ func WriteSummary(w io.Writer, result probe.RunResult) {
 	)
 	if len(result.Errors) > 0 {
 		fmt.Fprintln(w, "Errors:")
-		keys := make([]string, 0, len(result.Errors))
-		for k := range result.Errors {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
+		for _, k := range sortedErrorKeys(result.Errors) {
 			fmt.Fprintf(w, "  %s: %d\n", k, result.Errors[k])
 		}
 	}

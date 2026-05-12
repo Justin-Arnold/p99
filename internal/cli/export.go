@@ -11,9 +11,17 @@ import (
 )
 
 func writeRunFormat(w io.Writer, format string, result probe.RunResult) error {
+	return writeReportFormat(w, format, result, output.ReportOptions{})
+}
+
+func writeReportFormat(w io.Writer, format string, result probe.RunResult, opts output.ReportOptions) error {
 	switch format {
 	case "text":
-		output.WriteSummary(w, result)
+		if opts.Details || opts.Histogram || opts.SlowSamples || opts.Shape || opts.Runtime {
+			output.WriteReport(w, result, opts)
+		} else {
+			output.WriteSummary(w, result)
+		}
 	case "json":
 		return output.WriteJSON(w, result)
 	case "markdown", "md":

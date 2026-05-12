@@ -154,6 +154,70 @@ func TestReportCommandExportsFormats(t *testing.T) {
 	}
 }
 
+func TestReportCommandDetails(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.json")
+	if err := output.WriteJSONFile(path, probe.RunResult{
+		Version: probe.ResultVersion,
+		Summary: latency.Summary{
+			Count:   2,
+			Success: 1,
+			Errors:  1,
+			P99:     200 * time.Millisecond,
+		},
+		Histogram: []latency.Bucket{
+			{UpperBoundNS: int64(100 * time.Millisecond), Count: 1},
+			{UpperBoundNS: -1, Count: 1},
+		},
+		SlowSamples: []latency.SlowSample{{
+			Latency:   200 * time.Millisecond,
+			Timestamp: time.Unix(10, 0),
+			Status:    500,
+			Error:     "HTTP_5xx",
+			Method:    "GET",
+			URL:       "/slow",
+		}},
+		Errors: map[string]int{"HTTP_5xx": 1},
+		Shape:  latency.Shape{Kind: "spiky", Notes: []string{"tail moved"}, Hints: []string{"check retries"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"report", "--details", path}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, stderr.String())
+	}
+	for _, want := range []string{"Histogram:", "Slow samples:", "Shape analysis:", "Detail:"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("missing %q in output: %s", want, stdout.String())
+		}
+	}
+}
+
+func TestReportMarkdownIncludesDetails(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.json")
+	if err := output.WriteJSONFile(path, probe.RunResult{
+		Version:     probe.ResultVersion,
+		Summary:     latency.Summary{Count: 1, P99: 200 * time.Millisecond},
+		Histogram:   []latency.Bucket{{UpperBoundNS: -1, Count: 1}},
+		SlowSamples: []latency.SlowSample{{Latency: 200 * time.Millisecond, Timestamp: time.Unix(10, 0), Method: "GET", URL: "/slow"}},
+		Shape:       latency.Shape{Kind: "bimodal", Notes: []string{"two bands"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"report", "--format", "markdown", path}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, stderr.String())
+	}
+	for _, want := range []string{"## Shape Analysis", "## Histogram", "## Slow Samples"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("missing %q in markdown: %s", want, stdout.String())
+		}
+	}
+}
+
 func TestCompareCommandThresholdExit(t *testing.T) {
 	dir := t.TempDir()
 	before := filepath.Join(dir, "before.json")
