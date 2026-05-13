@@ -23,8 +23,8 @@ func TestHistogramBuckets(t *testing.T) {
 	h.Record(500 * time.Microsecond)
 	h.Record(1500 * time.Millisecond)
 	buckets := h.Buckets()
-	if buckets[0].Count != 1 {
-		t.Fatalf("first bucket count got %d, want 1", buckets[0].Count)
+	if buckets[0].UpperBoundNS != int64(500*time.Microsecond) || buckets[0].Count != 1 {
+		t.Fatalf("first bucket got %#v, want 500us count 1", buckets[0])
 	}
 	var total int
 	for _, b := range buckets {
@@ -32,6 +32,36 @@ func TestHistogramBuckets(t *testing.T) {
 	}
 	if total != 2 {
 		t.Fatalf("bucket total got %d, want 2", total)
+	}
+}
+
+func TestHistogramCompactsAfterExactLimit(t *testing.T) {
+	h := NewHistogramWithConfig(HistogramConfig{MaxExactValues: 4, SignificantFigures: 3})
+	for i := 1; i <= 10; i++ {
+		h.Record(time.Duration(i) * time.Millisecond)
+	}
+	if !h.IsCompacted() {
+		t.Fatal("expected histogram to compact")
+	}
+	if h.ExactValueCount() != 0 {
+		t.Fatalf("exact value count got %d, want 0", h.ExactValueCount())
+	}
+	if h.Count() != 10 {
+		t.Fatalf("count got %d, want 10", h.Count())
+	}
+	if h.Min() != time.Millisecond || h.Max() != 10*time.Millisecond {
+		t.Fatalf("min/max got %s/%s", h.Min(), h.Max())
+	}
+}
+
+func TestCompactedHistogramPercentileApproximation(t *testing.T) {
+	h := NewHistogramWithConfig(HistogramConfig{MaxExactValues: 10, SignificantFigures: 3})
+	for i := 1; i <= 1000; i++ {
+		h.Record(time.Duration(i) * time.Millisecond)
+	}
+	got := h.Percentile(99)
+	if got < 990*time.Millisecond || got > time.Second {
+		t.Fatalf("p99 got %s, want within 990ms..1s", got)
 	}
 }
 

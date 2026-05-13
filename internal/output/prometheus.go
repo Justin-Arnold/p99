@@ -85,4 +85,7 @@ func writeHistogramBuckets(w io.Writer, name string, buckets []latency.Bucket) {
 		}
 		fmt.Fprintf(w, "%s_bucket{le=%q} %d\n", name, le, cumulative)
 	}
+	if buckets[len(buckets)-1].UpperBoundNS >= 0 {
+		fmt.Fprintf(w, "%s_bucket{le=%q} %d\n", name, "+Inf", cumulative)
+	}
 }

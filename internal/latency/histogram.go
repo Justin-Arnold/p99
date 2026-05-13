@@ -1,8 +1,14 @@
 package latency
 
 import (
+	"math"
 	"sort"
 	"time"
+)
+
+const (
+	defaultMaxExactValues     = 4096
+	defaultSignificantFigures = 3
 )
 
 type Bucket struct {
@@ -10,97 +16,213 @@ type Bucket struct {
 	Count        int   `json:"count"`
 }
 
+type HistogramConfig struct {
+	MaxExactValues     int
+	SignificantFigures int
+}
+
 type Histogram struct {
-	values []time.Duration
+	cfg       HistogramConfig
+	count     int
+	min       time.Duration
+	max       time.Duration
+	exact     []time.Duration
+	buckets   map[int64]int
+	compacted bool
 }
 
 func NewHistogram() *Histogram {
-	return &Histogram{}
+	return NewHistogramWithConfig(HistogramConfig{})
+}
+
+func NewHistogramWithConfig(cfg HistogramConfig) *Histogram {
+	if cfg.MaxExactValues <= 0 {
+		cfg.MaxExactValues = defaultMaxExactValues
+	}
+	if cfg.SignificantFigures <= 0 {
+		cfg.SignificantFigures = defaultSignificantFigures
+	}
+	if cfg.SignificantFigures > 6 {
+		cfg.SignificantFigures = 6
+	}
+	return &Histogram{cfg: cfg, exact: make([]time.Duration, 0, min(cfg.MaxExactValues, 64))}
 }
 
 func (h *Histogram) Record(d time.Duration) {
 	if d < 0 {
 		return
 	}
-	h.values = append(h.values, d)
+	if h.count == 0 || d < h.min {
+		h.min = d
+	}
+	if h.count == 0 || d > h.max {
+		h.max = d
+	}
+	h.count++
+
+	if !h.compacted && len(h.exact) < h.cfg.MaxExactValues {
+		h.exact = append(h.exact, d)
+		return
+	}
+	if !h.compacted {
+		h.compact()
+	}
+	h.recordBucket(d)
 }
 
 func (h *Histogram) Count() int {
-	return len(h.values)
+	return h.count
 }
 
 func (h *Histogram) Values() []time.Duration {
-	out := make([]time.Duration, len(h.values))
-	copy(out, h.values)
+	out := make([]time.Duration, len(h.exact))
+	copy(out, h.exact)
 	return out
 }
 
 func (h *Histogram) Percentile(p float64) time.Duration {
-	if len(h.values) == 0 {
+	if h.count == 0 {
 		return 0
 	}
-	values := h.sorted()
 	if p <= 0 {
-		return values[0]
+		return h.min
 	}
 	if p >= 100 {
-		return values[len(values)-1]
+		return h.max
 	}
-	rank := (p / 100) * float64(len(values)-1)
-	i := int(rank)
-	frac := rank - float64(i)
-	if frac == 0 {
-		return values[i]
+	if !h.compacted {
+		return exactPercentile(h.sorted(), p)
 	}
-	lower := float64(values[i])
-	upper := float64(values[i+1])
-	return time.Duration(lower + (upper-lower)*frac)
+
+	rank := int(math.Ceil((p / 100) * float64(h.count)))
+	if rank < 1 {
+		rank = 1
+	}
+	var cumulative int
+	for _, bucket := range h.Buckets() {
+		cumulative += bucket.Count
+		if cumulative >= rank {
+			if bucket.UpperBoundNS < 0 {
+				return h.max
+			}
+			return time.Duration(bucket.UpperBoundNS)
+		}
+	}
+	return h.max
 }
 
 func (h *Histogram) Buckets() []Bucket {
-	if len(h.values) == 0 {
+	if h.count == 0 {
 		return nil
 	}
-	bounds := []time.Duration{
-		time.Millisecond,
-		2 * time.Millisecond,
-		5 * time.Millisecond,
-		10 * time.Millisecond,
-		20 * time.Millisecond,
-		50 * time.Millisecond,
-		100 * time.Millisecond,
-		200 * time.Millisecond,
-		500 * time.Millisecond,
-		time.Second,
-		2 * time.Second,
-		5 * time.Second,
-		10 * time.Second,
-		30 * time.Second,
+	if !h.compacted {
+		counts := map[int64]int{}
+		for _, value := range h.exact {
+			counts[roundUpSignificant(value.Nanoseconds(), h.cfg.SignificantFigures)]++
+		}
+		return sortedBuckets(counts)
 	}
-	buckets := make([]Bucket, len(bounds)+1)
-	for i, bound := range bounds {
-		buckets[i].UpperBoundNS = bound.Nanoseconds()
-	}
-	buckets[len(buckets)-1].UpperBoundNS = -1
+	return sortedBuckets(h.buckets)
+}
 
-	for _, v := range h.values {
-		placed := false
-		for i, bound := range bounds {
-			if v <= bound {
-				buckets[i].Count++
-				placed = true
-				break
-			}
-		}
-		if !placed {
-			buckets[len(buckets)-1].Count++
-		}
+func (h *Histogram) Min() time.Duration {
+	return h.min
+}
+
+func (h *Histogram) Max() time.Duration {
+	return h.max
+}
+
+func (h *Histogram) IsCompacted() bool {
+	return h.compacted
+}
+
+func (h *Histogram) ExactValueCount() int {
+	return len(h.exact)
+}
+
+func (h *Histogram) BucketCount() int {
+	if !h.compacted {
+		return len(h.Buckets())
 	}
-	return buckets
+	return len(h.buckets)
+}
+
+func (h *Histogram) compact() {
+	h.buckets = map[int64]int{}
+	for _, value := range h.exact {
+		h.recordBucket(value)
+	}
+	h.exact = nil
+	h.compacted = true
+}
+
+func (h *Histogram) recordBucket(d time.Duration) {
+	if h.buckets == nil {
+		h.buckets = map[int64]int{}
+	}
+	h.buckets[roundUpSignificant(d.Nanoseconds(), h.cfg.SignificantFigures)]++
 }
 
 func (h *Histogram) sorted() []time.Duration {
 	values := h.Values()
 	sort.Slice(values, func(i, j int) bool { return values[i] < values[j] })
 	return values
+}
+
+func exactPercentile(sorted []time.Duration, p float64) time.Duration {
+	if len(sorted) == 0 {
+		return 0
+	}
+	if p <= 0 {
+		return sorted[0]
+	}
+	if p >= 100 {
+		return sorted[len(sorted)-1]
+	}
+	rank := (p / 100) * float64(len(sorted)-1)
+	i := int(rank)
+	frac := rank - float64(i)
+	if frac == 0 {
+		return sorted[i]
+	}
+	lower := float64(sorted[i])
+	upper := float64(sorted[i+1])
+	return time.Duration(lower + (upper-lower)*frac)
+}
+
+func sortedBuckets(counts map[int64]int) []Bucket {
+	keys := make([]int64, 0, len(counts))
+	for key := range counts {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	out := make([]Bucket, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, Bucket{UpperBoundNS: key, Count: counts[key]})
+	}
+	return out
+}
+
+func roundUpSignificant(value int64, significantFigures int) int64 {
+	if value <= 0 {
+		return 0
+	}
+	if significantFigures <= 0 {
+		significantFigures = defaultSignificantFigures
+	}
+	digits := int(math.Floor(math.Log10(float64(value)))) + 1
+	scalePower := digits - significantFigures
+	if scalePower <= 0 {
+		return value
+	}
+	scale := int64(math.Pow10(scalePower))
+	return ((value + scale - 1) / scale) * scale
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

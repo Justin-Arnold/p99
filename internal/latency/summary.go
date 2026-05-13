@@ -24,14 +24,13 @@ func Summarize(h *Histogram, success, errors int) Summary {
 		Errors:  errors,
 	}
 	if count > 0 {
-		values := h.sorted()
-		s.Min = values[0]
+		s.Min = h.Min()
 		s.P50 = h.Percentile(50)
 		s.P90 = h.Percentile(90)
 		s.P95 = h.Percentile(95)
 		s.P99 = h.Percentile(99)
 		s.P999 = h.Percentile(99.9)
-		s.Max = values[len(values)-1]
+		s.Max = h.Max()
 	}
 	if success+errors > 0 {
 		s.ErrorRate = float64(errors) / float64(success+errors)

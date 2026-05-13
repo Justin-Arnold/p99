@@ -362,6 +362,12 @@ A run file contains:
 
 Durations in JSON are stored as nanoseconds.
 
+## Histogram strategy
+
+`p99` uses a bounded latency histogram. Small runs keep exact observations for precise percentile interpolation. Longer or higher-throughput runs compact into significant-figure latency buckets so memory does not grow with every request.
+
+The compacted histogram keeps min, max, count, percentile estimates, and exportable distribution buckets. Percentiles from compacted runs should be read as bucket-resolution estimates, which is the right tradeoff for long-running probes and CI workloads.
+
 ## Export formats
 
 `p99` supports four output families:
