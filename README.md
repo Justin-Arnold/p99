@@ -22,6 +22,55 @@ From a local checkout:
 go build ./cmd/p99
 ```
 
+With Nix:
+
+```sh
+nix run github:justin/p99 -- help
+nix build github:justin/p99
+```
+
+As a flake input on NixOS:
+
+```nix
+{
+  inputs.p99.url = "github:justin/p99";
+
+  outputs = inputs@{ nixpkgs, p99, ... }: {
+    nixosConfigurations.host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        p99.nixosModules.default
+        {
+          programs.p99.enable = true;
+        }
+      ];
+    };
+  };
+}
+```
+
+As a flake input on nix-darwin:
+
+```nix
+{
+  inputs.p99.url = "github:justin/p99";
+
+  outputs = inputs@{ nix-darwin, p99, ... }: {
+    darwinConfigurations.host = nix-darwin.lib.darwinSystem {
+      system = "aarch64-darwin";
+      modules = [
+        p99.darwinModules.default
+        {
+          programs.p99.enable = true;
+        }
+      ];
+    };
+  };
+}
+```
+
+The flake also exposes `overlays.default`, `packages.<system>.p99`, and `apps.<system>.p99`.
+
 ## HTTP probing
 
 ```sh
