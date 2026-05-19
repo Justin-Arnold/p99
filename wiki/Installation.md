@@ -1,0 +1,208 @@
+# Installation
+
+This page covers installation with release binaries, Homebrew, Go, Nix, NixOS, and nix-darwin.
+
+## Install Script
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/justin/p99/main/scripts/install.sh | sh
+```
+
+The install script downloads the latest release archive for your operating system and CPU architecture, verifies the checksum published with the release, and installs the `p99` binary into `~/.local/bin`.
+
+Use this when:
+
+- you want `p99` without installing Go
+- you are on Linux or macOS
+- you want a simple per-user install
+
+The script supports a few environment variables:
+
+```sh
+INSTALL_DIR=/usr/local/bin sh scripts/install.sh
+P99_VERSION=v0.1.0 sh scripts/install.sh
+P99_REPO=yourname/p99 sh scripts/install.sh
+```
+
+`INSTALL_DIR` controls where the binary is installed.
+
+`P99_VERSION` installs a specific GitHub release tag instead of the latest release.
+
+`P99_REPO` is useful when testing a fork.
+
+## Install With Homebrew
+
+```sh
+brew tap justin/tap
+brew install p99
+```
+
+Homebrew is a good fit on macOS and Linux machines where you already use `brew` for CLI tools.
+
+Use this when:
+
+- you do not want to manage release archives by hand
+- you want Homebrew to handle upgrades
+- you are installing on shared developer machines with an existing Homebrew workflow
+
+Upgrade with:
+
+```sh
+brew update
+brew upgrade p99
+```
+
+## Install From GitHub Releases
+
+Each tagged release publishes archives named by platform:
+
+```text
+p99_darwin_amd64.tar.gz
+p99_darwin_arm64.tar.gz
+p99_linux_amd64.tar.gz
+p99_linux_arm64.tar.gz
+checksums.txt
+```
+
+Download the archive that matches your machine, verify it against `checksums.txt`, extract it, and place `p99` somewhere on your `PATH`.
+
+Use this when:
+
+- you cannot run the install script
+- you need to pin an exact artifact in another packaging system
+- you are installing in a controlled CI image
+
+## Install With Go
+
+```sh
+go install github.com/justin/p99/cmd/p99@latest
+```
+
+This installs the `p99` binary into your Go binary directory, usually `~/go/bin`.
+
+Use this when:
+
+- you already have Go installed
+- you want the simplest local install
+- you are developing or testing quickly
+
+## Build From Source
+
+```sh
+git clone https://github.com/justin/p99
+cd p99
+go build ./cmd/p99
+```
+
+This creates a local `p99` binary in the repository directory.
+
+## Run With Nix
+
+```sh
+nix run github:justin/p99 -- help
+```
+
+Use this when you want to try `p99` without installing it permanently.
+
+## Build With Nix
+
+```sh
+nix build github:justin/p99
+```
+
+The built binary will be available under `result/bin/p99`.
+
+## NixOS Module
+
+Add the repository as a flake input:
+
+```nix
+{
+  inputs.p99.url = "github:justin/p99";
+}
+```
+
+Import the module in a host configuration:
+
+```nix
+{
+  imports = [ inputs.p99.nixosModules.default ];
+
+  programs.p99.enable = true;
+}
+```
+
+This adds `p99` to `environment.systemPackages`.
+
+### NixOS Options
+
+#### programs.p99.enable
+
+Type: boolean.
+
+Default: `false`.
+
+What it does:
+
+Enables installation of the `p99` CLI on the host.
+
+Why use it:
+
+Use this when `p99` should be available system-wide on a NixOS machine.
+
+#### programs.p99.package
+
+Type: package.
+
+Default: `inputs.p99.packages.${pkgs.stdenv.hostPlatform.system}.default`.
+
+What it does:
+
+Selects which `p99` package to install.
+
+Why use it:
+
+Use this if you want to install an overridden package, a local checkout, or a fork.
+
+Example:
+
+```nix
+{
+  programs.p99 = {
+    enable = true;
+    package = inputs.p99.packages.${pkgs.stdenv.hostPlatform.system}.p99;
+  };
+}
+```
+
+## nix-darwin Module
+
+The nix-darwin module has the same options as the NixOS module.
+
+```nix
+{
+  imports = [ inputs.p99.darwinModules.default ];
+
+  programs.p99.enable = true;
+}
+```
+
+This adds `p99` to `environment.systemPackages` on the Darwin host.
+
+## Overlay
+
+The flake exposes an overlay:
+
+```nix
+{
+  nixpkgs.overlays = [
+    inputs.p99.overlays.default
+  ];
+
+  environment.systemPackages = [
+    pkgs.p99
+  ];
+}
+```
+
+Use the overlay when you prefer package-level composition instead of a module option.

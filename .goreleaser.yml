@@ -1,0 +1,62 @@
+version: 2
+
+project_name: p99
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: p99
+    main: ./cmd/p99
+    binary: p99
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: p99
+    ids:
+      - p99
+    name_template: "p99_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+brews:
+  - name: p99
+    ids:
+      - p99
+    repository:
+      owner: justin
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/justin/p99"
+    description: "Latency profiler focused on tail latency"
+    install: |
+      bin.install "p99"
+    test: |
+      system "#{bin}/p99", "help"
