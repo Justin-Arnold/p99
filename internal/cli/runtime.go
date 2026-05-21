@@ -35,6 +35,10 @@ func runRuntime(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "invalid timeout: %v\n", err)
 		return 2
 	}
+	if err := requirePositiveDuration("timeout", timeout); err != nil {
+		fmt.Fprintf(stderr, "invalid timeout: %v\n", err)
+		return 2
+	}
 
 	before, after, err := collectRuntimeWindow(context.Background(), fs.Arg(0), timeout, func() error {
 		time.Sleep(duration)

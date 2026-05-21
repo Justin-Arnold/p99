@@ -68,6 +68,30 @@ func runWatch(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "invalid runtime-timeout: %v\n", err)
 		return 2
 	}
+	if err := requirePositiveFloat("rps", cfg.RPS); err != nil {
+		fmt.Fprintf(stderr, "invalid rps: %v\n", err)
+		return 2
+	}
+	if err := requirePositiveInt("concurrency", cfg.Concurrency); err != nil {
+		fmt.Fprintf(stderr, "invalid concurrency: %v\n", err)
+		return 2
+	}
+	if err := requirePositiveDuration("timeout", cfg.Timeout); err != nil {
+		fmt.Fprintf(stderr, "invalid timeout: %v\n", err)
+		return 2
+	}
+	if err := requirePositiveDuration("runtime-timeout", runtimeTimeout); err != nil {
+		fmt.Fprintf(stderr, "invalid runtime-timeout: %v\n", err)
+		return 2
+	}
+	if err := requireNonNegativeInt("slow-samples", cfg.SlowSamples); err != nil {
+		fmt.Fprintf(stderr, "invalid slow-samples: %v\n", err)
+		return 2
+	}
+	if err := requireNonNegativeInt("iterations", iterations); err != nil {
+		fmt.Fprintf(stderr, "invalid iterations: %v\n", err)
+		return 2
+	}
 	cfg.Duration = window
 	cfg.URL = fs.Arg(0)
 	cfg.Headers = map[string]string(headers)

@@ -10,6 +10,8 @@
   * [spans](Command-spans)
   * [report](Command-report)
   * [compare](Command-compare)
+  * [version](Command-version)
+  * [completion](Command-completion)
 * [Run Files and Reports](Run-Files-and-Reports)
 * [Export Formats](Export-Formats)
 * [Developing p99](Developing-p99)

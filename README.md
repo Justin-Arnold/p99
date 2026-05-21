@@ -49,7 +49,10 @@ As a flake input on NixOS or nix-darwin:
 ```nix
 {
   imports = [ inputs.p99.nixosModules.default ];
-  programs.p99.enable = true;
+  programs.p99 = {
+    enable = true;
+    enableCompletions = true;
+  };
 }
 ```
 
@@ -79,6 +82,18 @@ Compare two saved runs:
 
 ```sh
 p99 compare before.json after.json --max-p99-regression 20%
+```
+
+Print build information:
+
+```sh
+p99 version
+```
+
+Install shell completion:
+
+```sh
+p99 completion zsh > ~/.zsh/completions/_p99
 ```
 
 Watch a live endpoint:

@@ -30,6 +30,10 @@ func runSpans(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "spans requires exactly one JSON input file")
 		return 2
 	}
+	if err := requireNonNegativeInt("slow-samples", slowSamples); err != nil {
+		fmt.Fprintf(stderr, "invalid slow-samples: %v\n", err)
+		return 2
+	}
 	source := fs.Arg(0)
 	var r io.Reader
 	if source == "-" {

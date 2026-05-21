@@ -13,6 +13,8 @@
 | `p99 spans` | Analyze OpenTelemetry-style span JSON for route and dependency timing. |
 | `p99 report` | Read a saved run JSON file and print or export a report. |
 | `p99 compare` | Compare two saved run JSON files and enforce budgets. |
+| `p99 version` | Print build version, commit, and build date. |
+| `p99 completion` | Generate shell completion scripts. |
 
 ## Choosing a Command
 
@@ -29,5 +31,9 @@ Use `profile` when a Go service may be spending CPU in a slow path.
 Use `runtime` when you want to check GC, goroutines, heap, blocking, or pool-wait signals.
 
 Use `spans` when trace data is available and you want route/dependency breakdowns.
+
+Use `version` when you need to confirm which release is installed.
+
+Use `completion` when you want shell-native command and flag completion.
 
 Each command has a dedicated page with examples and flag explanations.

@@ -430,6 +430,97 @@ func TestHTTPCommandWritesRuntimeJSON(t *testing.T) {
 	}
 }
 
+func TestVersionCommand(t *testing.T) {
+	oldVersion, oldCommit, oldDate := Version, Commit, Date
+	Version, Commit, Date = "v1.2.3", "abc123", "2026-05-25T00:00:00Z"
+	defer func() {
+		Version, Commit, Date = oldVersion, oldCommit, oldDate
+	}()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"version"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, stderr.String())
+	}
+	for _, want := range []string{"p99 v1.2.3", "commit: abc123", "built: 2026-05-25T00:00:00Z"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("missing %q in version output: %s", want, stdout.String())
+		}
+	}
+}
+
+func TestCommandHelp(t *testing.T) {
+	for _, args := range [][]string{
+		{"help", "http"},
+		{"http", "--help"},
+	} {
+		var stdout, stderr bytes.Buffer
+		code := Run(args, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("%v exit %d, stderr: %s", args, code, stderr.String())
+		}
+		for _, want := range []string{"Usage:", "p99 http [flags] URL", "--duration value", "--runtime-timeout value"} {
+			if !strings.Contains(stdout.String(), want) {
+				t.Fatalf("%v missing %q in help output: %s", args, want, stdout.String())
+			}
+		}
+	}
+}
+
+func TestCompletionCommand(t *testing.T) {
+	for _, tc := range []struct {
+		shell    string
+		want     string
+		wantFlag string
+	}{
+		{"bash", "complete -F _p99_completion p99", "--duration"},
+		{"zsh", "#compdef p99", "--duration"},
+		{"fish", "complete -c p99", "-l duration"},
+	} {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"completion", tc.shell}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("%s exit %d, stderr: %s", tc.shell, code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), tc.want) || !strings.Contains(stdout.String(), tc.wantFlag) {
+			t.Fatalf("%s completion missing expected content: %s", tc.shell, stdout.String())
+		}
+	}
+}
+
+func TestCLINicetyValidation(t *testing.T) {
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.json")
+	after := filepath.Join(dir, "after.json")
+	if err := output.WriteJSONFile(before, probe.RunResult{Summary: latency.Summary{Count: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := output.WriteJSONFile(after, probe.RunResult{Summary: latency.Summary{Count: 1}}); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"http rps", []string{"http", "--rps", "0", "http://example.com"}, "invalid rps"},
+		{"watch iterations", []string{"watch", "--iterations", "-1", "http://example.com"}, "invalid iterations"},
+		{"spans slow samples", []string{"spans", "--slow-samples", "-1", "spans.json"}, "invalid slow-samples"},
+		{"compare min count", []string{"compare", "--min-request-count", "-1", before, after}, "invalid min-request-count"},
+	}
+	for _, tc := range tests {
+		var stdout, stderr bytes.Buffer
+		code := Run(tc.args, &stdout, &stderr)
+		if code != 2 {
+			t.Fatalf("%s exit %d, stdout: %s stderr: %s", tc.name, code, stdout.String(), stderr.String())
+		}
+		if !strings.Contains(stderr.String(), tc.want) {
+			t.Fatalf("%s missing %q in stderr: %s", tc.name, tc.want, stderr.String())
+		}
+	}
+}
+
 func cliRuntimeServer() *httptest.Server {
 	var calls uint64
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

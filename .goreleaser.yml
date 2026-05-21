@@ -21,6 +21,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
+      - -X github.com/justin/p99/internal/cli.Version={{ .Version }}
+      - -X github.com/justin/p99/internal/cli.Commit={{ .Commit }}
+      - -X github.com/justin/p99/internal/cli.Date={{ .Date }}
 
 archives:
   - id: p99

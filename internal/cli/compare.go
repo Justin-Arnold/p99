@@ -109,6 +109,9 @@ type compareThresholdTexts struct {
 func parseCompareThresholds(text compareThresholdTexts) (p99compare.CompareThresholds, error) {
 	var t p99compare.CompareThresholds
 	var err error
+	if text.minRequestCount < 0 {
+		return t, fmt.Errorf("invalid min-request-count: min-request-count must be non-negative")
+	}
 	t.MinRequestCount = text.minRequestCount
 	if t.MaxP50Regression, err = parseOptionalPercent("max-p50-regression", text.maxP50Regression); err != nil {
 		return t, err

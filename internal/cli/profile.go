@@ -62,6 +62,30 @@ func runProfile(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "invalid runtime-timeout: %v\n", err)
 		return 2
 	}
+	if err := requirePositiveInt("seconds", cfg.Seconds); err != nil {
+		fmt.Fprintf(stderr, "invalid seconds: %v\n", err)
+		return 2
+	}
+	if err := requirePositiveDuration("timeout", cfg.Timeout); err != nil {
+		fmt.Fprintf(stderr, "invalid timeout: %v\n", err)
+		return 2
+	}
+	if err := requirePositiveDuration("runtime-timeout", runtimeTimeout); err != nil {
+		fmt.Fprintf(stderr, "invalid runtime-timeout: %v\n", err)
+		return 2
+	}
+	if err := requirePositiveInt("top-count", cfg.TopCount); err != nil {
+		fmt.Fprintf(stderr, "invalid top-count: %v\n", err)
+		return 2
+	}
+	if err := requirePositiveFloat("probe-rps", probeRPS); err != nil {
+		fmt.Fprintf(stderr, "invalid probe-rps: %v\n", err)
+		return 2
+	}
+	if err := requirePositiveInt("probe-concurrency", probeConcurrency); err != nil {
+		fmt.Fprintf(stderr, "invalid probe-concurrency: %v\n", err)
+		return 2
+	}
 
 	var probeResult probe.RunResult
 	var haveProbe bool

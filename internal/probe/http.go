@@ -124,11 +124,17 @@ func (r HTTPRunner) validate() error {
 	if r.Config.Duration <= 0 {
 		return fmt.Errorf("duration must be positive")
 	}
+	if r.Config.RPS <= 0 {
+		return fmt.Errorf("rps must be positive")
+	}
 	if r.Config.Concurrency <= 0 {
 		return fmt.Errorf("concurrency must be positive")
 	}
 	if r.Config.Timeout <= 0 {
 		return fmt.Errorf("timeout must be positive")
+	}
+	if r.Config.SlowSamples < 0 {
+		return fmt.Errorf("slow-samples must be non-negative")
 	}
 	return nil
 }
