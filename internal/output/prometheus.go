@@ -20,8 +20,8 @@ func WritePrometheus(w io.Writer, result probe.RunResult) {
 	fmt.Fprintln(w, "# HELP p99_http_error_rate HTTP probe error rate.")
 	fmt.Fprintln(w, "# TYPE p99_http_error_rate gauge")
 	fmt.Fprintf(w, "p99_http_error_rate %g\n", result.Summary.ErrorRate)
-	writeLatencyQuantiles(w, "p99_http_latency_seconds", result.Summary)
-	writeHistogramBuckets(w, "p99_http_latency_seconds", result.Histogram)
+	writeLatencyQuantiles(w, "p99_http_latency_quantile_seconds", result.Summary)
+	writeDistributionBuckets(w, "p99_http_latency_bucket_requests", result.Histogram)
 	if len(result.Errors) > 0 {
 		keys := make([]string, 0, len(result.Errors))
 		for key := range result.Errors {
@@ -43,12 +43,12 @@ func WriteSpanPrometheus(w io.Writer, report spans.Report) {
 	fmt.Fprintln(w, "# HELP p99_span_request_errors_total Request traces marked as errors.")
 	fmt.Fprintln(w, "# TYPE p99_span_request_errors_total counter")
 	fmt.Fprintf(w, "p99_span_request_errors_total %d\n", report.Summary.Errors)
-	writeLatencyQuantiles(w, "p99_span_request_latency_seconds", report.Summary)
+	writeLatencyQuantiles(w, "p99_span_request_latency_quantile_seconds", report.Summary)
 	for _, route := range report.Routes {
-		writeGroupQuantiles(w, "p99_span_route_latency_seconds", "route", route.Name, route.Summary)
+		writeGroupQuantiles(w, "p99_span_route_latency_quantile_seconds", "route", route.Name, route.Summary)
 	}
 	for _, dep := range report.Dependencies {
-		writeGroupQuantiles(w, "p99_span_dependency_latency_seconds", "dependency", dep.Name, dep.Summary)
+		writeGroupQuantiles(w, "p99_span_dependency_latency_quantile_seconds", "dependency", dep.Name, dep.Summary)
 		fmt.Fprintf(w, "p99_span_dependency_time_seconds_total{dependency=%q,type=%q} %g\n", dep.Name, dep.Type, dep.Total.Seconds())
 	}
 }
@@ -70,12 +70,12 @@ func writeGroupQuantiles(w io.Writer, name, label, value string, s latency.Summa
 	fmt.Fprintf(w, "%s{%s=%q,quantile=\"0.99\"} %g\n", name, label, value, s.P99.Seconds())
 }
 
-func writeHistogramBuckets(w io.Writer, name string, buckets []latency.Bucket) {
+func writeDistributionBuckets(w io.Writer, name string, buckets []latency.Bucket) {
 	if len(buckets) == 0 {
 		return
 	}
-	fmt.Fprintf(w, "# HELP %s_bucket Cumulative latency buckets in seconds.\n", name)
-	fmt.Fprintf(w, "# TYPE %s_bucket histogram\n", name)
+	fmt.Fprintf(w, "# HELP %s Cumulative latency distribution bucket counts by upper bound.\n", name)
+	fmt.Fprintf(w, "# TYPE %s gauge\n", name)
 	var cumulative int
 	for _, bucket := range buckets {
 		cumulative += bucket.Count
@@ -83,9 +83,9 @@ func writeHistogramBuckets(w io.Writer, name string, buckets []latency.Bucket) {
 		if bucket.UpperBoundNS >= 0 {
 			le = fmt.Sprintf("%g", float64(bucket.UpperBoundNS)/1e9)
 		}
-		fmt.Fprintf(w, "%s_bucket{le=%q} %d\n", name, le, cumulative)
+		fmt.Fprintf(w, "%s{le=%q} %d\n", name, le, cumulative)
 	}
 	if buckets[len(buckets)-1].UpperBoundNS >= 0 {
-		fmt.Fprintf(w, "%s_bucket{le=%q} %d\n", name, "+Inf", cumulative)
+		fmt.Fprintf(w, "%s{le=%q} %d\n", name, "+Inf", cumulative)
 	}
 }

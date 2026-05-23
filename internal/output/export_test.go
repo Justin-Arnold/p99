@@ -28,7 +28,13 @@ func TestRunPrometheusExport(t *testing.T) {
 	if !strings.Contains(got, `p99_http_errors_by_class_total{class="HTTP_5xx"} 1`) {
 		t.Fatalf("missing error class metric: %s", got)
 	}
-	if !strings.Contains(got, `p99_http_latency_seconds_bucket{le="+Inf"} 3`) {
+	if strings.Contains(got, "# TYPE p99_http_latency_seconds_bucket histogram") {
+		t.Fatalf("export should not claim a Prometheus histogram without sum/count: %s", got)
+	}
+	if !strings.Contains(got, `p99_http_latency_quantile_seconds{quantile="0.99"} 0.12`) {
+		t.Fatalf("missing quantile metric: %s", got)
+	}
+	if !strings.Contains(got, `p99_http_latency_bucket_requests{le="+Inf"} 3`) {
 		t.Fatalf("missing cumulative bucket: %s", got)
 	}
 }

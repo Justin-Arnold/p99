@@ -505,6 +505,8 @@ func TestCLINicetyValidation(t *testing.T) {
 		want string
 	}{
 		{"http rps", []string{"http", "--rps", "0", "http://example.com"}, "invalid rps"},
+		{"http nan rps", []string{"http", "--rps", "NaN", "http://example.com"}, "must be finite"},
+		{"http runtime timeout", []string{"http", "--runtime-timeout", "0s", "http://example.com"}, "invalid runtime-timeout"},
 		{"watch iterations", []string{"watch", "--iterations", "-1", "http://example.com"}, "invalid iterations"},
 		{"spans slow samples", []string{"spans", "--slow-samples", "-1", "spans.json"}, "invalid slow-samples"},
 		{"compare min count", []string{"compare", "--min-request-count", "-1", before, after}, "invalid min-request-count"},

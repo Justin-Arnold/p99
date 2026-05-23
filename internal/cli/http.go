@@ -158,6 +158,10 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
+	if err := requirePositiveDuration("runtime-timeout", runtimeTimeout); err != nil {
+		fmt.Fprintf(stderr, "invalid runtime-timeout: %v\n", err)
+		return 2
+	}
 
 	var body []byte
 	if bodyFile != "" {

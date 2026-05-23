@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 )
@@ -350,6 +351,9 @@ func requirePositiveDuration(name string, d time.Duration) error {
 }
 
 func requirePositiveFloat(name string, v float64) error {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return fmt.Errorf("%s must be finite", name)
+	}
 	if v <= 0 {
 		return fmt.Errorf("%s must be positive", name)
 	}

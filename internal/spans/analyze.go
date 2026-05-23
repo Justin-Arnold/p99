@@ -20,10 +20,6 @@ type traceData struct {
 }
 
 func Analyze(spans []Span, warnings []string, opts AnalyzeOptions) Report {
-	if opts.SlowSamples <= 0 {
-		opts.SlowSamples = 10
-	}
-
 	traces := groupTraces(spans)
 	requests := requestTraces(traces)
 	requestHist := latency.NewHistogram()

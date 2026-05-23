@@ -2,6 +2,7 @@ package timeutil
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -52,6 +53,9 @@ func ParsePercentThreshold(s string) (float64, error) {
 	v, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		return 0, err
+	}
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0, fmt.Errorf("percent threshold must be finite")
 	}
 	if v < 0 {
 		return 0, fmt.Errorf("percent threshold must be non-negative")

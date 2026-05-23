@@ -99,3 +99,21 @@ func TestAnalyzeRoutesDependenciesAndSlowTraces(t *testing.T) {
 		t.Fatalf("slow traces got %#v", report.SlowTraces)
 	}
 }
+
+func TestAnalyzeAllowsDisablingSlowTraces(t *testing.T) {
+	base := time.Unix(0, 0)
+	report := Analyze([]Span{{
+		TraceID:    "t1",
+		SpanID:     "root",
+		Name:       "GET /search",
+		Kind:       "SERVER",
+		Service:    "api",
+		Start:      base,
+		End:        base.Add(300 * time.Millisecond),
+		Attributes: map[string]string{"http.route": "/search"},
+	}}, nil, AnalyzeOptions{SlowSamples: 0})
+
+	if len(report.SlowTraces) != 0 {
+		t.Fatalf("slow traces got %#v, want none", report.SlowTraces)
+	}
+}

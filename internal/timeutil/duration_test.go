@@ -29,6 +29,14 @@ func TestParsePercentThreshold(t *testing.T) {
 	}
 }
 
+func TestParsePercentThresholdRejectsNonFinite(t *testing.T) {
+	for _, input := range []string{"NaN", "+Inf", "-Inf"} {
+		if _, err := ParsePercentThreshold(input); err == nil {
+			t.Fatalf("expected %q to fail", input)
+		}
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	if got := FormatDuration(1500 * time.Microsecond); got != "1.500ms" {
 		t.Fatalf("got %q", got)
