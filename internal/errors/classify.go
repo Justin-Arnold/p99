@@ -49,6 +49,8 @@ func Classify(err error) string {
 		return TLS
 	}
 	if strings.Contains(strings.ToLower(err.Error()), "tls") {
+		// Some TLS failures arrive wrapped by transports that do not expose a
+		// concrete TLS error type. The string fallback is intentionally narrow.
 		return TLS
 	}
 	return Unknown

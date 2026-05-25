@@ -95,6 +95,8 @@ func (c Collector) Collect(ctx context.Context) (Snapshot, error) {
 	}
 
 	s := Snapshot{At: time.Now(), BaseURL: normalizeBase(base)}
+	// Missing debug endpoints should reduce confidence, not fail the whole
+	// latency run. Warnings preserve that uncertainty in the saved report.
 	c.collectExpvar(ctx, client, &s)
 	c.collectGoroutines(ctx, client, &s)
 	c.collectProfileSamples(ctx, client, &s, "mutex")
@@ -130,6 +132,8 @@ func (c Collector) collectExpvar(ctx context.Context, client *http.Client, s *Sn
 		s.GCPauseTotalNS = uintValue(memstats, "PauseTotalNs")
 		if pauses, ok := array(memstats["PauseNs"]); ok && len(pauses) > 0 {
 			if numGC := derefUint(s.GCCycles); numGC > 0 {
+				// PauseNs is a ring buffer indexed by GC cycle. NumGC identifies
+				// the most recent pause without assuming the buffer starts at zero.
 				idx := int((numGC - 1) % uint64(len(pauses)))
 				s.LastGCPauseNS = uintFromAny(pauses[idx])
 			}
@@ -204,6 +208,8 @@ func countProfileSamples(body []byte) uint64 {
 		if len(fields) == 0 {
 			continue
 		}
+		// Text pprof output is stable enough to count sample rows, but not stable
+		// enough to infer wait duration portably across Go versions.
 		if _, err := strconv.ParseInt(fields[0], 10, 64); err == nil {
 			count++
 		}
@@ -321,6 +327,8 @@ func signedUintDelta(before, after *uint64) *int64 {
 
 func monotonicDelta(before, after *uint64) *uint64 {
 	if before == nil || after == nil || *after < *before {
+		// Counter resets happen across restarts or endpoint changes. Returning nil
+		// is less misleading than reporting a huge wrapped delta.
 		return nil
 	}
 	d := *after - *before

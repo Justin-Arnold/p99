@@ -32,6 +32,8 @@ func AnalyzeShape(points []TimedLatency) Shape {
 	p90 := percentile(values, 90)
 	p99 := percentile(values, 99)
 
+	// Check time trend before static distribution shape; a degrading run can
+	// look merely spiky if the ordering is discarded too early.
 	if degrading(points) {
 		return Shape{
 			Kind:  "degrading_over_time",
@@ -40,6 +42,8 @@ func AnalyzeShape(points []TimedLatency) Shape {
 		}
 	}
 
+	// These thresholds are deliberately blunt. Shape hints should prompt the
+	// next measurement, not sound more certain than the data supports.
 	if p99 > p50*8 && p99-p90 > p50*4 {
 		return Shape{
 			Kind:  "spiky",
@@ -102,6 +106,8 @@ func degrading(points []TimedLatency) bool {
 	}
 	sort.Slice(first, func(i, j int) bool { return first[i] < first[j] })
 	sort.Slice(last, func(i, j int) bool { return last[i] < last[j] })
+	// Median-to-median comparison resists one-off outliers while still catching
+	// queue buildup or resource exhaustion that worsens through the run.
 	return percentile(last, 50) > percentile(first, 50)*3
 }
 
@@ -123,5 +129,7 @@ func looksBimodal(sorted []time.Duration) bool {
 	if left < len(sorted)/5 || right < len(sorted)/5 {
 		return false
 	}
+	// Require both sides of the gap to contain enough points so a single slow
+	// request does not get labeled as a second mode.
 	return largestGap > percentile(sorted, 50)*2
 }

@@ -19,6 +19,8 @@
       makeCompletions =
         pkgs: package: shells:
         pkgs.runCommand "p99-completions" { nativeBuildInputs = [ pkgs.installShellFiles ]; } ''
+          # Keep completion installation declarative for NixOS and nix-darwin:
+          # the CLI prints scripts, and the module places them in the store.
           mkdir -p "$out"
           ${lib.optionalString (builtins.elem "bash" shells) ''
             ${package}/bin/p99 completion bash > p99.bash

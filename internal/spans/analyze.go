@@ -20,6 +20,9 @@ type traceData struct {
 }
 
 func Analyze(spans []Span, warnings []string, opts AnalyzeOptions) Report {
+	// Span data is already post-facto evidence, so analysis favors grouping and
+	// comparison over trying to infer exclusive time from potentially overlapping
+	// spans.
 	traces := groupTraces(spans)
 	requests := requestTraces(traces)
 	requestHist := latency.NewHistogram()
@@ -82,6 +85,8 @@ func Analyze(spans []Span, warnings []string, opts AnalyzeOptions) Report {
 			depCounts[name]++
 			depTypes[name] = depType
 			depServices[name] = span.Service
+			// Dependency spans can overlap. This total is represented dependency
+			// time, not exclusive wall-clock time.
 			depTime += d
 			depSamples = append(depSamples, DependencySample{Name: name, Type: depType, Duration: d})
 		}
@@ -145,6 +150,8 @@ func requestRoot(spans []Span) (Span, bool) {
 			return span, true
 		}
 		if span.ParentSpanID == "" && (!haveFallback || span.Duration() > fallback.Duration()) {
+			// Some exported traces omit span kind. The longest root span is usually
+			// the closest available proxy for the request boundary.
 			fallback = span
 			haveFallback = true
 		}
@@ -157,6 +164,8 @@ func isDependency(span Span) bool {
 	case "CLIENT", "PRODUCER", "CONSUMER":
 		return true
 	}
+	// Attribute fallback keeps older or normalized trace exports useful even when
+	// span kind is missing or vendor-specific.
 	if span.Attributes["db.system"] != "" || span.Attributes["rpc.system"] != "" || span.Attributes["peer.service"] != "" {
 		return true
 	}
@@ -242,6 +251,8 @@ func dependencies(hists map[string]*latency.Histogram, counts map[string]int, to
 	for name, hist := range hists {
 		var share float64
 		if totalRequestTime > 0 {
+			// This share can exceed 100% when dependency spans overlap. Keeping it
+			// visible is more useful than hiding concurrency in the trace.
 			share = float64(totals[name]) / float64(totalRequestTime)
 		}
 		out = append(out, DependencySummary{

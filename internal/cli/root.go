@@ -160,6 +160,9 @@ func commandByName(name string) (commandSpec, bool) {
 }
 
 func commandSpecs() []commandSpec {
+	// The stdlib flag package keeps dependencies small, but it does not provide
+	// command metadata. This table is the single source for root help and shell
+	// completions so they drift less as commands grow.
 	return []commandSpec{
 		{
 			Name:    "http",
@@ -322,6 +325,8 @@ func parse(fs *flag.FlagSet, args []string, valueFlags map[string]bool) error {
 }
 
 func reorderArgs(args []string, valueFlags map[string]bool) []string {
+	// Users often put the URL first and flags after it. The standard flag package
+	// stops at the first positional, so we normalize order before parsing.
 	flags := []string{}
 	positionals := []string{}
 	for i := 0; i < len(args); i++ {
@@ -352,6 +357,8 @@ func requirePositiveDuration(name string, d time.Duration) error {
 
 func requirePositiveFloat(name string, v float64) error {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
+		// NaN compares false against every numeric bound, so reject it before the
+		// ordinary positive check.
 		return fmt.Errorf("%s must be finite", name)
 	}
 	if v <= 0 {

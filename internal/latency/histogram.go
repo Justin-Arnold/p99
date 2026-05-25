@@ -11,6 +11,8 @@ const (
 	defaultSignificantFigures = 3
 )
 
+// Bucket uses an upper bound instead of a lower/width pair so saved run files
+// can be read without knowing the histogram strategy that produced them.
 type Bucket struct {
 	UpperBoundNS int64 `json:"upper_bound_ns"`
 	Count        int   `json:"count"`
@@ -43,6 +45,8 @@ func NewHistogramWithConfig(cfg HistogramConfig) *Histogram {
 		cfg.SignificantFigures = defaultSignificantFigures
 	}
 	if cfg.SignificantFigures > 6 {
+		// More precision creates many buckets without adding useful signal for
+		// latency triage; exact values are retained before compaction anyway.
 		cfg.SignificantFigures = 6
 	}
 	return &Histogram{cfg: cfg, exact: make([]time.Duration, 0, min(cfg.MaxExactValues, 64))}
@@ -65,6 +69,8 @@ func (h *Histogram) Record(d time.Duration) {
 		return
 	}
 	if !h.compacted {
+		// Exact storage keeps short runs precise. Compaction only starts once a
+		// run is large enough that bounded memory matters more than interpolation.
 		h.compact()
 	}
 	h.recordBucket(d)
@@ -94,6 +100,8 @@ func (h *Histogram) Percentile(p float64) time.Duration {
 		return exactPercentile(h.sorted(), p)
 	}
 
+	// After compaction, percentile answers are bucket upper bounds. Returning the
+	// bound intentionally errs high, which is safer for latency budgets.
 	rank := int(math.Ceil((p / 100) * float64(h.count)))
 	if rank < 1 {
 		rank = 1
@@ -118,6 +126,8 @@ func (h *Histogram) Buckets() []Bucket {
 	if !h.compacted {
 		counts := map[int64]int{}
 		for _, value := range h.exact {
+			// Run files use the same bucket representation for exact and compacted
+			// runs so report/export code does not need two distribution formats.
 			counts[roundUpSignificant(value.Nanoseconds(), h.cfg.SignificantFigures)]++
 		}
 		return sortedBuckets(counts)
@@ -217,6 +227,8 @@ func roundUpSignificant(value int64, significantFigures int) int64 {
 		return value
 	}
 	scale := int64(math.Pow10(scalePower))
+	// Rounding up keeps bucket labels as "at or below" bounds instead of
+	// nearest representatives, which is easier to reason about in reports.
 	return ((value + scale - 1) / scale) * scale
 }
 

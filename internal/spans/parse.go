@@ -68,6 +68,8 @@ func parseAny(v any, inheritedService string, warnings *[]string) ([]Span, error
 					}
 				}
 				if instrumentationLibrarySpans, ok := array(rs["instrumentationLibrarySpans"]); ok {
+					// Older OTLP JSON used instrumentationLibrarySpans. Accepting
+					// both shapes lets users analyze archived traces.
 					for _, ils := range instrumentationLibrarySpans {
 						m, ok := object(ils)
 						if !ok {
@@ -89,6 +91,8 @@ func parseAny(v any, inheritedService string, warnings *[]string) ([]Span, error
 		if looksLikeSpan(x) {
 			span, err := parseSpan(x, inheritedService)
 			if err != nil {
+				// One malformed span should not discard the rest of a trace
+				// export; warnings keep the loss visible to the user.
 				*warnings = append(*warnings, err.Error())
 				return nil, nil
 			}
@@ -217,6 +221,8 @@ func parseSpanTime(v any) (time.Time, error) {
 		if n, err := strconv.ParseInt(x, 10, 64); err == nil {
 			return time.Unix(0, n).UTC(), nil
 		}
+		// Human-authored fixtures and some exports use RFC3339 strings instead
+		// of OTLP nanoseconds. Supporting both keeps tests and imports readable.
 		t, err := time.Parse(time.RFC3339Nano, x)
 		if err != nil {
 			return time.Time{}, err

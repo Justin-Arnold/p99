@@ -119,6 +119,8 @@ if [ ! -f "$tmp/p99" ]; then
 	exit 1
 fi
 
+# Install with cp rather than mv so a failed chmod cannot consume the only
+# extracted copy inside the temporary directory.
 mkdir -p "$install_dir"
 cp "$tmp/p99" "$install_dir/p99"
 chmod 0755 "$install_dir/p99"

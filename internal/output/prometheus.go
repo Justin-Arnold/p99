@@ -74,6 +74,9 @@ func writeDistributionBuckets(w io.Writer, name string, buckets []latency.Bucket
 	if len(buckets) == 0 {
 		return
 	}
+	// These are distribution bucket gauges, not a Prometheus histogram family:
+	// saved run files do not carry latency sum, and compacted buckets are p99's
+	// own analysis format rather than scrape-time observations.
 	fmt.Fprintf(w, "# HELP %s Cumulative latency distribution bucket counts by upper bound.\n", name)
 	fmt.Fprintf(w, "# TYPE %s gauge\n", name)
 	var cumulative int

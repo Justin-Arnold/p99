@@ -55,6 +55,8 @@ func ParsePercentThreshold(s string) (float64, error) {
 		return 0, err
 	}
 	if math.IsNaN(v) || math.IsInf(v, 0) {
+		// strconv accepts NaN/Inf; budget comparisons do not behave sensibly with
+		// non-finite values.
 		return 0, fmt.Errorf("percent threshold must be finite")
 	}
 	if v < 0 {

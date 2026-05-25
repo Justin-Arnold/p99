@@ -29,6 +29,8 @@ func runCompletion(args []string, stdout, stderr io.Writer) int {
 }
 
 func writeBashCompletion(w io.Writer) {
+	// The generated scripts are intentionally static. Package managers and Nix
+	// modules can install them without the CLI mutating a user's shell files.
 	fmt.Fprintln(w, `_p99_completion() {`)
 	fmt.Fprintln(w, `  local cur cmd flags`)
 	fmt.Fprintln(w, `  COMPREPLY=()`)

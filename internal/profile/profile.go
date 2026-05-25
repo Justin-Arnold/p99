@@ -57,6 +57,8 @@ func (f Fetcher) Fetch(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	// Anonymous captures should not leave partial profile files behind, but user
+	// supplied output paths are preserved so failures can be inspected.
 	defer cleanup(false)
 
 	started := time.Now()
@@ -140,6 +142,8 @@ func profileURL(raw string, seconds int) string {
 	}
 	q := u.Query()
 	if q.Get("seconds") == "" {
+		// Respect an explicit query parameter so callers can use pprof-compatible
+		// endpoints that interpret duration differently.
 		q.Set("seconds", strconv.Itoa(seconds))
 	}
 	u.RawQuery = q.Encode()

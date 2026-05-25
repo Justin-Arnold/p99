@@ -45,6 +45,8 @@ func (r HTTPRunner) Run(ctx context.Context) (RunResult, error) {
 	runCtx, cancel := context.WithTimeout(ctx, total+r.Config.Timeout+time.Second)
 	defer cancel()
 
+	// The scheduler owns pacing and workers only own request execution. Keeping
+	// those roles separate makes the concurrency limit independent from RPS.
 	jobs := make(chan bool)
 	observations := make(chan observation, r.Config.Concurrency*2)
 	var wg sync.WaitGroup
@@ -64,6 +66,8 @@ func (r HTTPRunner) Run(ctx context.Context) (RunResult, error) {
 	startedAt := time.Now()
 	go func() {
 		r.schedule(runCtx, jobs, false, r.Config.Warmup)
+		// Warmup requests exercise caches and connections without polluting the
+		// measured distribution.
 		startedAt = time.Now()
 		r.schedule(runCtx, jobs, true, r.Config.Duration)
 		close(jobs)
@@ -166,6 +170,8 @@ func (r HTTPRunner) schedule(ctx context.Context, jobs chan<- bool, record bool,
 		return
 	}
 
+	// Send immediately, then tick. Without the first request, very short runs can
+	// report no data even when the target RPS is sensible.
 	interval := time.Duration(float64(time.Second) / r.Config.RPS)
 	if interval <= 0 {
 		interval = time.Nanosecond
@@ -242,5 +248,7 @@ func sampleURL(raw string) string {
 	if strings.TrimSpace(path) == "" {
 		return raw
 	}
+	// Slow samples avoid scheme/host so saved reports are easier to share without
+	// leaking more environment detail than the request path already contains.
 	return path
 }
