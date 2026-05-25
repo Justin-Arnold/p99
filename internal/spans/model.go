@@ -3,7 +3,7 @@ package spans
 import (
 	"time"
 
-	"github.com/justin/p99/internal/latency"
+	"github.com/Justin-Arnold/p99/internal/latency"
 )
 
 const ReportVersion = 1

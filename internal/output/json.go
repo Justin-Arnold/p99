@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/justin/p99/internal/probe"
+	"github.com/Justin-Arnold/p99/internal/probe"
 )
 
 func WriteJSON(w io.Writer, result probe.RunResult) error {

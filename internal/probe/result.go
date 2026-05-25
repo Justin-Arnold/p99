@@ -3,8 +3,8 @@ package probe
 import (
 	"time"
 
-	"github.com/justin/p99/internal/latency"
-	"github.com/justin/p99/internal/runtimesignal"
+	"github.com/Justin-Arnold/p99/internal/latency"
+	"github.com/Justin-Arnold/p99/internal/runtimesignal"
 )
 
 const ResultVersion = 1

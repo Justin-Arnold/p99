@@ -6,9 +6,9 @@ import (
 	"io"
 	"time"
 
-	p99compare "github.com/justin/p99/internal/compare"
-	"github.com/justin/p99/internal/output"
-	"github.com/justin/p99/internal/timeutil"
+	p99compare "github.com/Justin-Arnold/p99/internal/compare"
+	"github.com/Justin-Arnold/p99/internal/output"
+	"github.com/Justin-Arnold/p99/internal/timeutil"
 )
 
 func runCompare(args []string, stdout, stderr io.Writer) int {

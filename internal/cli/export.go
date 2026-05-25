@@ -5,9 +5,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/justin/p99/internal/output"
-	"github.com/justin/p99/internal/probe"
-	"github.com/justin/p99/internal/spans"
+	"github.com/Justin-Arnold/p99/internal/output"
+	"github.com/Justin-Arnold/p99/internal/probe"
+	"github.com/Justin-Arnold/p99/internal/spans"
 )
 
 func writeRunFormat(w io.Writer, format string, result probe.RunResult) error {

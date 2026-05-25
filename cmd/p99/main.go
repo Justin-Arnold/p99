@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/justin/p99/internal/cli"
+	"github.com/Justin-Arnold/p99/internal/cli"
 )
 
 func main() {

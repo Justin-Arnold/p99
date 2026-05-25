@@ -23,7 +23,7 @@ buildGoModule {
 
   meta = {
     description = "Latency profiler focused on tail latency";
-    homepage = "https://github.com/justin/p99";
+    homepage = "https://github.com/Justin-Arnold/p99";
     mainProgram = "p99";
     platforms = lib.platforms.darwin ++ lib.platforms.linux;
   };

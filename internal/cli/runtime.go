@@ -7,9 +7,9 @@ import (
 	"io"
 	"time"
 
-	"github.com/justin/p99/internal/output"
-	"github.com/justin/p99/internal/runtimesignal"
-	"github.com/justin/p99/internal/timeutil"
+	"github.com/Justin-Arnold/p99/internal/output"
+	"github.com/Justin-Arnold/p99/internal/runtimesignal"
+	"github.com/Justin-Arnold/p99/internal/timeutil"
 )
 
 func runRuntime(args []string, stdout, stderr io.Writer) int {

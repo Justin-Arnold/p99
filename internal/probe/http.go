@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	p99errors "github.com/justin/p99/internal/errors"
-	"github.com/justin/p99/internal/latency"
+	p99errors "github.com/Justin-Arnold/p99/internal/errors"
+	"github.com/Justin-Arnold/p99/internal/latency"
 )
 
 type HTTPRunner struct {

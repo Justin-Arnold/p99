@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/justin/p99/internal/output"
+	"github.com/Justin-Arnold/p99/internal/output"
 )
 
 func runReport(args []string, stdout, stderr io.Writer) int {

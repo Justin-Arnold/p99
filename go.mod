@@ -1,3 +1,3 @@
-module github.com/justin/p99
+module github.com/Justin-Arnold/p99
 
 go 1.22

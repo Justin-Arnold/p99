@@ -15,20 +15,20 @@ The main signals are percentiles and distributions, not averages. The CLI report
 Install the latest release binary:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/justin/p99/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Justin-Arnold/p99/main/scripts/install.sh | sh
 ```
 
 Install with Homebrew:
 
 ```sh
-brew tap justin/tap
+brew tap Justin-Arnold/tap
 brew install p99
 ```
 
 With Go:
 
 ```sh
-go install github.com/justin/p99/cmd/p99@latest
+go install github.com/Justin-Arnold/p99/cmd/p99@latest
 ```
 
 From a local checkout:
@@ -40,8 +40,8 @@ go build ./cmd/p99
 With Nix:
 
 ```sh
-nix run github:justin/p99 -- help
-nix build github:justin/p99
+nix run github:Justin-Arnold/p99 -- help
+nix build github:Justin-Arnold/p99
 ```
 
 As a flake input on NixOS or nix-darwin:

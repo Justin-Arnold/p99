@@ -49,7 +49,7 @@ Those hooks are intentionally boring. A release should prove that the module is 
 The release workflow is configured to publish a formula to:
 
 ```text
-justin/homebrew-tap
+Justin-Arnold/homebrew-tap
 ```
 
 The formula lives under:

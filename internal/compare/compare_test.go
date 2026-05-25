@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/justin/p99/internal/latency"
-	"github.com/justin/p99/internal/probe"
+	"github.com/Justin-Arnold/p99/internal/latency"
+	"github.com/Justin-Arnold/p99/internal/probe"
 )
 
 func TestCompareMath(t *testing.T) {

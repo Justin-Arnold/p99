@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/justin/p99/internal/latency"
-	"github.com/justin/p99/internal/probe"
-	"github.com/justin/p99/internal/spans"
+	"github.com/Justin-Arnold/p99/internal/latency"
+	"github.com/Justin-Arnold/p99/internal/probe"
+	"github.com/Justin-Arnold/p99/internal/spans"
 )
 
 type otlpExport struct {

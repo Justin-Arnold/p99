@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/justin/p99/internal/output"
-	"github.com/justin/p99/internal/probe"
-	p99profile "github.com/justin/p99/internal/profile"
-	"github.com/justin/p99/internal/runtimesignal"
-	"github.com/justin/p99/internal/timeutil"
+	"github.com/Justin-Arnold/p99/internal/output"
+	"github.com/Justin-Arnold/p99/internal/probe"
+	p99profile "github.com/Justin-Arnold/p99/internal/profile"
+	"github.com/Justin-Arnold/p99/internal/runtimesignal"
+	"github.com/Justin-Arnold/p99/internal/timeutil"
 )
 
 func runProfile(args []string, stdout, stderr io.Writer) int {

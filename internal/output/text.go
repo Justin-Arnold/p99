@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/justin/p99/internal/probe"
-	"github.com/justin/p99/internal/timeutil"
+	"github.com/Justin-Arnold/p99/internal/probe"
+	"github.com/Justin-Arnold/p99/internal/timeutil"
 )
 
 func WriteSummary(w io.Writer, result probe.RunResult) {

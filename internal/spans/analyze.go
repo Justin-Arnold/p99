@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/justin/p99/internal/latency"
+	"github.com/Justin-Arnold/p99/internal/latency"
 )
 
 type AnalyzeOptions struct {

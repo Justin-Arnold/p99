@@ -5,7 +5,7 @@ This page covers installation with release binaries, Homebrew, Go, Nix, NixOS, a
 ## Install Script
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/justin/p99/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Justin-Arnold/p99/main/scripts/install.sh | sh
 ```
 
 The install script downloads the latest release archive for your operating system and CPU architecture, verifies the checksum published with the release, and installs the `p99` binary into `~/.local/bin`.
@@ -33,7 +33,7 @@ P99_REPO=yourname/p99 sh scripts/install.sh
 ## Install With Homebrew
 
 ```sh
-brew tap justin/tap
+brew tap Justin-Arnold/tap
 brew install p99
 ```
 
@@ -75,7 +75,7 @@ Use this when:
 ## Install With Go
 
 ```sh
-go install github.com/justin/p99/cmd/p99@latest
+go install github.com/Justin-Arnold/p99/cmd/p99@latest
 ```
 
 This installs the `p99` binary into your Go binary directory, usually `~/go/bin`.
@@ -89,7 +89,7 @@ Use this when:
 ## Build From Source
 
 ```sh
-git clone https://github.com/justin/p99
+git clone https://github.com/Justin-Arnold/p99
 cd p99
 go build ./cmd/p99
 ```
@@ -99,7 +99,7 @@ This creates a local `p99` binary in the repository directory.
 ## Run With Nix
 
 ```sh
-nix run github:justin/p99 -- help
+nix run github:Justin-Arnold/p99 -- help
 ```
 
 Use this when you want to try `p99` without installing it permanently.
@@ -107,7 +107,7 @@ Use this when you want to try `p99` without installing it permanently.
 ## Build With Nix
 
 ```sh
-nix build github:justin/p99
+nix build github:Justin-Arnold/p99
 ```
 
 The built binary will be available under `result/bin/p99`.
@@ -118,7 +118,7 @@ Add the repository as a flake input:
 
 ```nix
 {
-  inputs.p99.url = "github:justin/p99";
+  inputs.p99.url = "github:Justin-Arnold/p99";
 }
 ```
 

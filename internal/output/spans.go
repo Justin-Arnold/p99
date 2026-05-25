@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/justin/p99/internal/spans"
-	"github.com/justin/p99/internal/timeutil"
+	"github.com/Justin-Arnold/p99/internal/spans"
+	"github.com/Justin-Arnold/p99/internal/timeutil"
 )
 
 func WriteSpanReport(w io.Writer, report spans.Report) {

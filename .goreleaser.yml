@@ -21,9 +21,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/justin/p99/internal/cli.Version={{ .Version }}
-      - -X github.com/justin/p99/internal/cli.Commit={{ .Commit }}
-      - -X github.com/justin/p99/internal/cli.Date={{ .Date }}
+      - -X github.com/Justin-Arnold/p99/internal/cli.Version={{ .Version }}
+      - -X github.com/Justin-Arnold/p99/internal/cli.Commit={{ .Commit }}
+      - -X github.com/Justin-Arnold/p99/internal/cli.Date={{ .Date }}
 
 archives:
   - id: p99
@@ -53,11 +53,11 @@ brews:
     ids:
       - p99
     repository:
-      owner: justin
+      owner: Justin-Arnold
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
-    homepage: "https://github.com/justin/p99"
+    homepage: "https://github.com/Justin-Arnold/p99"
     description: "Latency profiler focused on tail latency"
     install: |
       bin.install "p99"

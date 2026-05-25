@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/justin/p99/internal/spans"
+	"github.com/Justin-Arnold/p99/internal/spans"
 )
 
 func runSpans(args []string, stdout, stderr io.Writer) int {

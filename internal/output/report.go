@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/justin/p99/internal/latency"
-	"github.com/justin/p99/internal/probe"
-	"github.com/justin/p99/internal/timeutil"
+	"github.com/Justin-Arnold/p99/internal/latency"
+	"github.com/Justin-Arnold/p99/internal/probe"
+	"github.com/Justin-Arnold/p99/internal/timeutil"
 )
 
 type ReportOptions struct {

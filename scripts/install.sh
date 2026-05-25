@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-repo="${P99_REPO:-justin/p99}"
+repo="${P99_REPO:-Justin-Arnold/p99}"
 version="${P99_VERSION:-latest}"
 install_dir="${INSTALL_DIR:-$HOME/.local/bin}"
 
