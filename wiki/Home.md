@@ -49,9 +49,10 @@ You do not need to be an expert in latency profiling to use it. The wiki explain
 
 New to the topic:
 
-1. Read [Concepts](Concepts).
-2. Run the examples in [Quick Start](Quick-Start).
-3. Read [Command http](Command-http) and [Command report](Command-report).
+1. Read [Learning p99](Learning-p99).
+2. Use [Concepts](Concepts) as a glossary while you work.
+3. Run the examples in [Quick Start](Quick-Start).
+4. Read [Command http](Command-http) and [Command report](Command-report).
 
 Already familiar with profiling:
 

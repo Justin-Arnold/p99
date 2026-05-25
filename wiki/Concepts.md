@@ -2,6 +2,8 @@
 
 This page explains the terms `p99` uses and why they matter.
 
+For a guided end-to-end walkthrough, read [Learning p99](Learning-p99). Use this page as a glossary when a term is unfamiliar.
+
 ## Latency
 
 Latency is how long one operation takes. For `p99 http`, the operation is one HTTP request. For `p99 spans`, request latency comes from a server span or root span in a trace.

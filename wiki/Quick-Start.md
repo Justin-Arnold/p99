@@ -2,6 +2,8 @@
 
 This page walks through common first uses.
 
+If the profiling concepts are new, start with [Learning p99](Learning-p99). It explains why each command matters before moving into command details.
+
 ## Probe One URL
 
 ```sh
