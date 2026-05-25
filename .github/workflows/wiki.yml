@@ -1,0 +1,61 @@
+name: wiki
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "wiki/**"
+      - ".github/workflows/wiki.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Publish wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WIKI_TOKEN: ${{ secrets.WIKI_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          token="${WIKI_TOKEN:-$GH_TOKEN}"
+          wiki_dir="$(mktemp -d)"
+          wiki_url="https://x-access-token:${token}@github.com/${REPOSITORY}.wiki.git"
+
+          if git clone "$wiki_url" "$wiki_dir"; then
+            branch="$(git -C "$wiki_dir" branch --show-current)"
+            if [ -z "$branch" ]; then
+              branch="master"
+              git -C "$wiki_dir" checkout -B "$branch"
+            fi
+          else
+            echo "Wiki repository is not initialized yet; creating a local wiki checkout."
+            git -C "$wiki_dir" init
+            git -C "$wiki_dir" checkout -B master
+            git -C "$wiki_dir" remote add origin "$wiki_url"
+            branch="master"
+          fi
+
+          rsync -a --delete --exclude ".git" wiki/ "$wiki_dir"/
+
+          git -C "$wiki_dir" config user.name "github-actions[bot]"
+          git -C "$wiki_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$wiki_dir" add .
+
+          if git -C "$wiki_dir" diff --cached --quiet; then
+            echo "Wiki is already up to date."
+            exit 0
+          fi
+
+          git -C "$wiki_dir" commit -m "Sync wiki from ${GITHUB_SHA}"
+          git -C "$wiki_dir" push origin "HEAD:${branch}"
