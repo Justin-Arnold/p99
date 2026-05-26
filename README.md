@@ -18,13 +18,6 @@ Install the latest release binary:
 curl -fsSL https://raw.githubusercontent.com/Justin-Arnold/p99/main/scripts/install.sh | sh
 ```
 
-Install with Homebrew:
-
-```sh
-brew tap Justin-Arnold/tap
-brew install p99
-```
-
 With Go:
 
 ```sh

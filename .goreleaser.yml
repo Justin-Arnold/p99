@@ -47,19 +47,3 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
-
-brews:
-  - name: p99
-    ids:
-      - p99
-    repository:
-      owner: Justin-Arnold
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
-    homepage: "https://github.com/Justin-Arnold/p99"
-    description: "Latency profiler focused on tail latency"
-    install: |
-      bin.install "p99"
-    test: |
-      system "#{bin}/p99", "help"

@@ -1,6 +1,6 @@
 # Installation
 
-This page covers installation with release binaries, Homebrew, Go, Nix, NixOS, and nix-darwin.
+This page covers installation with release binaries, Go, Nix, NixOS, and nix-darwin.
 
 ## Install Script
 
@@ -29,28 +29,6 @@ P99_REPO=yourname/p99 sh scripts/install.sh
 `P99_VERSION` installs a specific GitHub release tag instead of the latest release.
 
 `P99_REPO` is useful when testing a fork.
-
-## Install With Homebrew
-
-```sh
-brew tap Justin-Arnold/tap
-brew install p99
-```
-
-Homebrew is a good fit on macOS and Linux machines where you already use `brew` for CLI tools.
-
-Use this when:
-
-- you do not want to manage release archives by hand
-- you want Homebrew to handle upgrades
-- you are installing on shared developer machines with an existing Homebrew workflow
-
-Upgrade with:
-
-```sh
-brew update
-brew upgrade p99
-```
 
 ## Install From GitHub Releases
 
