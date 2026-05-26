@@ -20,7 +20,7 @@ The script supports a few environment variables:
 
 ```sh
 INSTALL_DIR=/usr/local/bin sh scripts/install.sh
-P99_VERSION=v0.1.0 sh scripts/install.sh
+P99_VERSION=v0.2.0 sh scripts/install.sh
 P99_REPO=yourname/p99 sh scripts/install.sh
 ```
 

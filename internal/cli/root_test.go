@@ -40,6 +40,60 @@ func TestHTTPCommandWritesJSON(t *testing.T) {
 	}
 }
 
+func TestHTTPCommandRequestSpecWritesMixToJSON(t *testing.T) {
+	var seenSearch bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/search" {
+			seenSearch = true
+			if r.URL.Query().Get("q") == "" {
+				t.Errorf("missing randomized query")
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	specPath := filepath.Join(dir, "requests.yaml")
+	if err := os.WriteFile(specPath, []byte(`
+version: 1
+base_url: `+srv.URL+`
+datasets:
+  terms: [alpha, beta]
+requests:
+  - name: search
+    weight: 1
+    method: GET
+    path: /search
+    query:
+      q: "{{ term }}"
+    vars:
+      term:
+        dataset: terms
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "run.json")
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"http", "--request-spec", specPath, "--seed", "42", "--duration", "100ms", "--rps", "20", "--output", out}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, stderr.String())
+	}
+	if !seenSearch {
+		t.Fatal("server did not see spec request")
+	}
+	result, err := output.ReadJSON(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Config.RequestSpec != specPath || result.Config.RequestSeed != 42 {
+		t.Fatalf("request spec metadata not saved: %#v", result.Config)
+	}
+	if len(result.RequestMix) != 1 || result.RequestMix[0].Name != "search" || result.RequestMix[0].Count == 0 {
+		t.Fatalf("request mix got %#v", result.RequestMix)
+	}
+}
+
 func TestHTTPCommandWritesAdditionalExports(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -305,6 +359,38 @@ func TestWatchCommandRunsOneWindow(t *testing.T) {
 	}
 }
 
+func TestWatchCommandRequestSpecRunsOneWindow(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	specPath := writeCLITestRequestSpec(t, srv.URL)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"watch", "--request-spec", specPath, "--seed", "9", "--window", "80ms", "--rps", "20", "--iterations", "1", "--clear=false"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Request mix:") {
+		t.Fatalf("missing request mix: %s", stdout.String())
+	}
+}
+
+func TestHTTPRequestSpecRejectsShapeFlagsAndURL(t *testing.T) {
+	specPath := writeCLITestRequestSpec(t, "http://example.test")
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"http", "--request-spec", specPath, "--method", "POST"}, &stdout, &stderr)
+	if code != 2 || !strings.Contains(stderr.String(), "--request-spec cannot be used with --method") {
+		t.Fatalf("exit %d stderr %s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = Run([]string{"http", "--request-spec", specPath, "http://example.test"}, &stdout, &stderr)
+	if code != 2 || !strings.Contains(stderr.String(), "accepts no URL") {
+		t.Fatalf("exit %d stderr %s", code, stderr.String())
+	}
+}
+
 func TestProfileCommandDownloadsProfile(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.Query().Get("seconds"); got != "1" {
@@ -360,6 +446,39 @@ func TestProfileCommandCorrelatesProbe(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Correlated HTTP probe") {
 		t.Fatalf("missing correlated probe output: %s", stdout.String())
+	}
+}
+
+func TestProfileCommandCorrelatesProbeSpec(t *testing.T) {
+	profileSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("profile bytes"))
+	}))
+	defer profileSrv.Close()
+	probeSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer probeSrv.Close()
+	specPath := writeCLITestRequestSpec(t, probeSrv.URL)
+
+	path := filepath.Join(t.TempDir(), "cpu.pprof")
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"profile",
+		"--seconds", "1",
+		"--timeout", "1s",
+		"--top=false",
+		"--output", path,
+		"--probe-spec", specPath,
+		"--probe-duration", "80ms",
+		"--probe-rps", "20",
+		"--seed", "11",
+		profileSrv.URL + "/debug/pprof/profile",
+	}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Correlated HTTP probe") || !strings.Contains(stdout.String(), "Request mix:") {
+		t.Fatalf("missing correlated probe spec output: %s", stdout.String())
 	}
 }
 
@@ -553,4 +672,20 @@ func cliRuntimeServer() *httptest.Server {
 			http.NotFound(w, r)
 		}
 	}))
+}
+
+func writeCLITestRequestSpec(t *testing.T, baseURL string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "requests.yaml")
+	if err := os.WriteFile(path, []byte(`
+version: 1
+base_url: `+baseURL+`
+requests:
+  - name: detail
+    method: GET
+    path: /detail
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

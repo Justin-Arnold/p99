@@ -22,6 +22,19 @@ p99 profile \
   http://localhost:8080/debug/pprof/profile
 ```
 
+## With Request Spec Probe Correlation
+
+```sh
+p99 profile \
+  --seconds 30 \
+  --probe-spec requests.yaml \
+  --probe-rps 100 \
+  --seed 123 \
+  http://localhost:8080/debug/pprof/profile
+```
+
+Use this when the profile should line up with a realistic mix of user traffic instead of one static probe URL.
+
 ## Flags
 
 ### `--seconds`
@@ -66,6 +79,18 @@ HTTP URL to probe while the profile is captured.
 
 Use it to put CPU profile data next to user-facing latency data.
 
+### `--probe-spec`
+
+YAML or JSON request spec to probe while the profile is captured.
+
+Use it instead of `--probe` when the profile should be collected under a weighted mix of request shapes. `--probe` and `--probe-spec` cannot be used together.
+
+### `--probe-base-url`
+
+Override `base_url` from the probe request spec.
+
+Use it to reuse one request spec across local, staging, and production targets.
+
 ### `--probe-duration`
 
 Duration for the correlated HTTP probe.
@@ -83,6 +108,12 @@ Use it to create realistic load while profiling.
 Maximum in-flight requests for the correlated probe.
 
 Use it to bound probe pressure.
+
+### `--seed`
+
+Seed probe request selection and randomized variables when `--probe-spec` is used.
+
+Use it to replay the same generated probe traffic during another profile capture.
 
 ### `--runtime`
 

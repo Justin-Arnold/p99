@@ -3,6 +3,7 @@
 * [Concepts](Concepts)
 * [Installation](Installation)
 * [Quick Start](Quick-Start)
+* [Request Specs](Request-Specs)
 * [Command Reference](Command-Reference)
   * [http](Command-http)
   * [watch](Command-watch)

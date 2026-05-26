@@ -90,10 +90,17 @@ func writeSlowSamples(w io.Writer, samples []latency.SlowSample) {
 			timeutil.FormatDuration(sample.Latency),
 			status,
 			errClass,
-			sample.Method,
+			sampleLabel(sample),
 			sample.URL,
 		)
 	}
+}
+
+func sampleLabel(sample latency.SlowSample) string {
+	if sample.Request == "" {
+		return sample.Method
+	}
+	return sample.Request + " " + sample.Method
 }
 
 func writeShapeDetail(w io.Writer, result probe.RunResult) {

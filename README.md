@@ -65,6 +65,12 @@ Probe with load and save a run file:
 p99 http --rps 100 --duration 2m --concurrency 20 --output run.json https://api.example.com/search
 ```
 
+Probe a weighted mix of complex requests:
+
+```sh
+p99 http --request-spec requests.yaml --seed 123 --duration 2m --output run.json
+```
+
 Read a saved run:
 
 ```sh
@@ -105,7 +111,7 @@ p99 spans traces.json
 
 The full documentation lives in the GitHub Wiki. The source pages are kept in [wiki/](wiki/) so they can be reviewed and versioned with the code.
 
-Start with [wiki/Home.md](wiki/Home.md), then read the command pages for detailed explanations of every command and flag.
+Start with [wiki/Home.md](wiki/Home.md), then read the command pages for detailed explanations of every command and flag. For complex POST/search workloads, see [wiki/Request-Specs.md](wiki/Request-Specs.md).
 
 ## Development
 

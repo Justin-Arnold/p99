@@ -27,6 +27,12 @@ func WriteSummary(w io.Writer, result probe.RunResult) {
 			fmt.Fprintf(w, "  %s: %d\n", k, result.Errors[k])
 		}
 	}
+	if len(result.RequestMix) > 0 {
+		fmt.Fprintln(w, "Request mix:")
+		for _, req := range result.RequestMix {
+			fmt.Fprintf(w, "  %s weight=%d count=%d success=%d errors=%d\n", req.Name, req.Weight, req.Count, req.Success, req.Errors)
+		}
+	}
 	fmt.Fprintf(w, "Shape: %s\n", result.Shape.Kind)
 	for _, note := range result.Shape.Notes {
 		fmt.Fprintf(w, "  %s\n", note)
