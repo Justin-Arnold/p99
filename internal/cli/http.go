@@ -14,6 +14,7 @@ import (
 	"github.com/Justin-Arnold/p99/internal/compare"
 	"github.com/Justin-Arnold/p99/internal/output"
 	"github.com/Justin-Arnold/p99/internal/probe"
+	"github.com/Justin-Arnold/p99/internal/requestspec"
 	"github.com/Justin-Arnold/p99/internal/runtimesignal"
 	"github.com/Justin-Arnold/p99/internal/timeutil"
 )
@@ -54,6 +55,8 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 	var durationText, warmupText, timeoutText, outputPath, bodyFile, p99UnderText, errorRateUnderText string
 	var runtimeURL, runtimeTimeoutText string
 	var markdownOutput, prometheusOutput, otelOutput string
+	var requestSpecPath, baseURL string
+	var seed int64
 	headers := headerFlags{}
 	statuses := statusFlags{}
 	cfg := probe.HTTPConfig{Method: http.MethodGet, Duration: 10 * time.Second, RPS: 1, Concurrency: 1, Timeout: 10 * time.Second, SlowSamples: 10}
@@ -77,6 +80,9 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&markdownOutput, "markdown-output", "", "write Markdown report to path")
 	fs.StringVar(&prometheusOutput, "prometheus-output", "", "write Prometheus text metrics to path")
 	fs.StringVar(&otelOutput, "otel-output", "", "write OpenTelemetry metrics JSON to path")
+	fs.StringVar(&requestSpecPath, "request-spec", "", "YAML or JSON request spec for weighted traffic")
+	fs.StringVar(&baseURL, "base-url", "", "override request spec base_url")
+	fs.Int64Var(&seed, "seed", 0, "seed for request spec randomization; 0 generates one")
 
 	valueFlags := map[string]bool{
 		"duration": true, "rps": true, "concurrency": true, "warmup": true, "timeout": true,
@@ -84,13 +90,22 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 		"output": true, "out": true, "slow-samples": true, "p99-under": true, "error-rate-under": true,
 		"runtime": true, "runtime-timeout": true,
 		"markdown-output": true, "prometheus-output": true, "otel-output": true,
+		"request-spec": true, "base-url": true, "seed": true,
 	}
 	if err := parse(fs, args, valueFlags); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
-	if fs.NArg() != 1 {
+	if requestSpecPath == "" && fs.NArg() != 1 {
 		fmt.Fprintln(stderr, "http requires exactly one URL")
+		return 2
+	}
+	if requestSpecPath != "" && fs.NArg() != 0 {
+		fmt.Fprintln(stderr, "http accepts no URL when --request-spec is used")
+		return 2
+	}
+	if err := rejectSpecOnlyFlags(fs, requestSpecPath, "base-url", "seed"); err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 
@@ -134,6 +149,18 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 	cfg.Headers = map[string]string(headers)
 	cfg.BodyFile = bodyFile
 	cfg.ExpectedStatus = []int(statuses)
+	var plan *requestspec.Plan
+	if requestSpecPath != "" {
+		if err := rejectRequestSpecConflicts(fs, "method", "H", "header", "body-file", "status"); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		plan, err = loadRequestPlan(requestSpecPath, baseURL, seed, explicitFlags(fs)["seed"], &cfg)
+		if err != nil {
+			fmt.Fprintf(stderr, "request spec: %v\n", err)
+			return 2
+		}
+	}
 
 	var thresholds compare.RunThresholds
 	if p99UnderText != "" {
@@ -177,7 +204,7 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 	if runtimeURL != "" {
 		before, after, err := collectRuntimeWindow(context.Background(), runtimeURL, runtimeTimeout, func() error {
 			var runErr error
-			result, runErr = probe.HTTPRunner{Config: cfg, Body: body}.Run(context.Background())
+			result, runErr = probe.HTTPRunner{Config: cfg, Body: body, RequestPlan: plan}.Run(context.Background())
 			return runErr
 		})
 		if err != nil {
@@ -187,7 +214,7 @@ func runHTTP(args []string, stdout, stderr io.Writer) int {
 		correlation := runtimesignal.Correlate(before, after)
 		result.Runtime = &correlation
 	} else {
-		result, err = probe.HTTPRunner{Config: cfg, Body: body}.Run(context.Background())
+		result, err = probe.HTTPRunner{Config: cfg, Body: body, RequestPlan: plan}.Run(context.Background())
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, err)
