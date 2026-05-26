@@ -28,8 +28,8 @@ checksums.txt
 Create and push a version tag:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 The `release` workflow runs on tags that start with `v`.
