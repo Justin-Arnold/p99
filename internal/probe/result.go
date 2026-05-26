@@ -22,6 +22,18 @@ type HTTPConfig struct {
 	RequestBodySize int               `json:"request_body_size,omitempty"`
 	ExpectedStatus  []int             `json:"expected_status,omitempty"`
 	SlowSamples     int               `json:"slow_samples"`
+	RequestSpec     string            `json:"request_spec,omitempty"`
+	RequestBaseURL  string            `json:"request_base_url,omitempty"`
+	RequestSeed     int64             `json:"request_seed,omitempty"`
+}
+
+type RequestStats struct {
+	Name           string         `json:"name"`
+	Weight         int            `json:"weight"`
+	Count          int            `json:"count"`
+	Success        int            `json:"success"`
+	Errors         int            `json:"errors"`
+	ErrorBreakdown map[string]int `json:"error_breakdown,omitempty"`
 }
 
 type RunResult struct {
@@ -33,6 +45,7 @@ type RunResult struct {
 	Histogram   []latency.Bucket           `json:"histogram"`
 	SlowSamples []latency.SlowSample       `json:"slow_samples,omitempty"`
 	Errors      map[string]int             `json:"error_breakdown,omitempty"`
+	RequestMix  []RequestStats             `json:"request_mix,omitempty"`
 	Shape       latency.Shape              `json:"shape"`
 	Runtime     *runtimesignal.Correlation `json:"runtime,omitempty"`
 }

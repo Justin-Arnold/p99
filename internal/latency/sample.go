@@ -10,6 +10,7 @@ type SlowSample struct {
 	Timestamp time.Time     `json:"timestamp"`
 	Status    int           `json:"status_code,omitempty"`
 	Error     string        `json:"error_class,omitempty"`
+	Request   string        `json:"request,omitempty"`
 	Method    string        `json:"method"`
 	URL       string        `json:"url"`
 }

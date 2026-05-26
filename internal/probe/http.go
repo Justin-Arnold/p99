@@ -5,20 +5,24 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	p99errors "github.com/Justin-Arnold/p99/internal/errors"
 	"github.com/Justin-Arnold/p99/internal/latency"
+	"github.com/Justin-Arnold/p99/internal/requestspec"
 )
 
 type HTTPRunner struct {
-	Config HTTPConfig
-	Body   []byte
-	Client *http.Client
+	Config      HTTPConfig
+	Body        []byte
+	RequestPlan *requestspec.Plan
+	Client      *http.Client
 }
 
 type observation struct {
@@ -26,37 +30,47 @@ type observation struct {
 	at      time.Time
 	status  int
 	class   string
+	request requestspec.RenderedRequest
+}
+
+type requestJob struct {
+	record  bool
+	request requestspec.RenderedRequest
 }
 
 func (r HTTPRunner) Run(ctx context.Context) (RunResult, error) {
 	if err := r.validate(); err != nil {
 		return RunResult{}, err
 	}
+	cfg := r.Config
+	if r.RequestPlan != nil && cfg.RequestSeed == 0 {
+		cfg.RequestSeed = time.Now().UnixNano()
+	}
 
 	client := r.Client
 	if client == nil {
-		client = &http.Client{Timeout: r.Config.Timeout}
+		client = &http.Client{Timeout: cfg.Timeout}
 	}
 	if client.Timeout == 0 {
-		client.Timeout = r.Config.Timeout
+		client.Timeout = cfg.Timeout
 	}
 
-	total := r.Config.Warmup + r.Config.Duration
-	runCtx, cancel := context.WithTimeout(ctx, total+r.Config.Timeout+time.Second)
+	total := cfg.Warmup + cfg.Duration
+	runCtx, cancel := context.WithTimeout(ctx, total+cfg.Timeout+time.Second)
 	defer cancel()
 
 	// The scheduler owns pacing and workers only own request execution. Keeping
 	// those roles separate makes the concurrency limit independent from RPS.
-	jobs := make(chan bool)
-	observations := make(chan observation, r.Config.Concurrency*2)
+	jobs := make(chan requestJob)
+	observations := make(chan observation, cfg.Concurrency*2)
 	var wg sync.WaitGroup
-	for i := 0; i < r.Config.Concurrency; i++ {
+	for i := 0; i < cfg.Concurrency; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for record := range jobs {
-				obs := r.doRequest(runCtx, client)
-				if record {
+			for job := range jobs {
+				obs := r.doRequest(runCtx, client, job.request)
+				if job.record {
 					observations <- obs
 				}
 			}
@@ -64,20 +78,22 @@ func (r HTTPRunner) Run(ctx context.Context) (RunResult, error) {
 	}
 
 	startedAt := time.Now()
+	renderErr := atomic.Value{}
 	go func() {
-		r.schedule(runCtx, jobs, false, r.Config.Warmup)
+		r.schedule(runCtx, jobs, false, cfg.Warmup, cfg, &renderErr)
 		// Warmup requests exercise caches and connections without polluting the
 		// measured distribution.
 		startedAt = time.Now()
-		r.schedule(runCtx, jobs, true, r.Config.Duration)
+		r.schedule(runCtx, jobs, true, cfg.Duration, cfg, &renderErr)
 		close(jobs)
 		wg.Wait()
 		close(observations)
 	}()
 
 	h := latency.NewHistogram()
-	sampler := latency.NewSlowSampler(r.Config.SlowSamples)
+	sampler := latency.NewSlowSampler(cfg.SlowSamples)
 	errorsByClass := map[string]int{}
+	mix := requestMix(r.RequestPlan)
 	points := []latency.TimedLatency{}
 	var success, failures int
 
@@ -89,10 +105,21 @@ func (r HTTPRunner) Run(ctx context.Context) (RunResult, error) {
 			Timestamp: obs.at,
 			Status:    obs.status,
 			Error:     obs.class,
-			Method:    r.Config.Method,
-			URL:       sampleURL(r.Config.URL),
+			Request:   obs.request.Name,
+			Method:    obs.request.Method,
+			URL:       sampleURL(obs.request.URL),
 		}
 		sampler.Add(sample)
+		if obs.request.Name != "" {
+			stats := mix[obs.request.Name]
+			stats.Count++
+			if obs.class == "" {
+				stats.Success++
+			} else {
+				stats.Errors++
+				stats.ErrorBreakdown[obs.class]++
+			}
+		}
 		if obs.class == "" {
 			success++
 		} else {
@@ -100,29 +127,35 @@ func (r HTTPRunner) Run(ctx context.Context) (RunResult, error) {
 			errorsByClass[obs.class]++
 		}
 	}
+	if v := renderErr.Load(); v != nil {
+		return RunResult{}, v.(error)
+	}
 
 	endedAt := time.Now()
 	return RunResult{
 		Version:     ResultVersion,
-		Config:      r.Config,
+		Config:      cfg,
 		StartedAt:   startedAt,
 		EndedAt:     endedAt,
 		Summary:     latency.Summarize(h, success, failures),
 		Histogram:   h.Buckets(),
 		SlowSamples: sampler.Samples(),
 		Errors:      errorsByClass,
+		RequestMix:  sortedRequestMix(mix, r.RequestPlan),
 		Shape:       latency.AnalyzeShape(points),
 	}, nil
 }
 
 func (r HTTPRunner) validate() error {
-	if r.Config.URL == "" {
+	if r.RequestPlan == nil && r.Config.URL == "" {
 		return fmt.Errorf("url is required")
 	}
-	if _, err := url.ParseRequestURI(r.Config.URL); err != nil {
-		return fmt.Errorf("invalid url: %w", err)
+	if r.RequestPlan == nil {
+		if _, err := url.ParseRequestURI(r.Config.URL); err != nil {
+			return fmt.Errorf("invalid url: %w", err)
+		}
 	}
-	if r.Config.Method == "" {
+	if r.RequestPlan == nil && r.Config.Method == "" {
 		return fmt.Errorf("method is required")
 	}
 	if r.Config.Duration <= 0 {
@@ -140,30 +173,54 @@ func (r HTTPRunner) validate() error {
 	if r.Config.SlowSamples < 0 {
 		return fmt.Errorf("slow-samples must be non-negative")
 	}
+	if r.RequestPlan != nil && len(r.RequestPlan.Requests) == 0 {
+		return fmt.Errorf("request plan is empty")
+	}
 	return nil
 }
 
-func (r HTTPRunner) schedule(ctx context.Context, jobs chan<- bool, record bool, duration time.Duration) {
+func (r HTTPRunner) schedule(ctx context.Context, jobs chan<- requestJob, record bool, duration time.Duration, cfg HTTPConfig, renderErr *atomic.Value) {
 	if duration <= 0 {
 		return
 	}
 	deadline := time.NewTimer(duration)
 	defer deadline.Stop()
+	rng := rand.New(rand.NewSource(cfg.RequestSeed))
+	if !record {
+		rng = rand.New(rand.NewSource(cfg.RequestSeed - 1))
+	}
 
-	if r.Config.RPS <= 0 {
+	if cfg.RPS <= 0 {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-deadline.C:
 				return
-			case jobs <- record:
+			default:
+				job, err := r.nextJob(record, cfg, rng)
+				if err != nil {
+					renderErr.Store(err)
+					return
+				}
+				select {
+				case jobs <- job:
+				case <-ctx.Done():
+					return
+				case <-deadline.C:
+					return
+				}
 			}
 		}
 	}
 
+	first, err := r.nextJob(record, cfg, rng)
+	if err != nil {
+		renderErr.Store(err)
+		return
+	}
 	select {
-	case jobs <- record:
+	case jobs <- first:
 	case <-ctx.Done():
 		return
 	case <-deadline.C:
@@ -172,7 +229,7 @@ func (r HTTPRunner) schedule(ctx context.Context, jobs chan<- bool, record bool,
 
 	// Send immediately, then tick. Without the first request, very short runs can
 	// report no data even when the target RPS is sensible.
-	interval := time.Duration(float64(time.Second) / r.Config.RPS)
+	interval := time.Duration(float64(time.Second) / cfg.RPS)
 	if interval <= 0 {
 		interval = time.Nanosecond
 	}
@@ -185,8 +242,13 @@ func (r HTTPRunner) schedule(ctx context.Context, jobs chan<- bool, record bool,
 		case <-deadline.C:
 			return
 		case <-ticker.C:
+			job, err := r.nextJob(record, cfg, rng)
+			if err != nil {
+				renderErr.Store(err)
+				return
+			}
 			select {
-			case jobs <- record:
+			case jobs <- job:
 			case <-ctx.Done():
 				return
 			case <-deadline.C:
@@ -196,41 +258,85 @@ func (r HTTPRunner) schedule(ctx context.Context, jobs chan<- bool, record bool,
 	}
 }
 
-func (r HTTPRunner) doRequest(ctx context.Context, client *http.Client) observation {
-	start := time.Now()
-	req, err := http.NewRequestWithContext(ctx, r.Config.Method, r.Config.URL, bytes.NewReader(r.Body))
-	if err != nil {
-		return observation{latency: time.Since(start), at: start, class: p99errors.Unknown}
+func (r HTTPRunner) nextJob(record bool, cfg HTTPConfig, rng *rand.Rand) (requestJob, error) {
+	req := requestspec.RenderedRequest{
+		Method:         cfg.Method,
+		URL:            cfg.URL,
+		Headers:        cfg.Headers,
+		Body:           append([]byte(nil), r.Body...),
+		ExpectedStatus: cfg.ExpectedStatus,
 	}
-	for k, v := range r.Config.Headers {
+	if r.RequestPlan != nil {
+		rendered, err := r.RequestPlan.Render(rng)
+		if err != nil {
+			return requestJob{}, err
+		}
+		req = rendered
+	}
+	return requestJob{record: record, request: req}, nil
+}
+
+func (r HTTPRunner) doRequest(ctx context.Context, client *http.Client, request requestspec.RenderedRequest) observation {
+	start := time.Now()
+	req, err := http.NewRequestWithContext(ctx, request.Method, request.URL, bytes.NewReader(request.Body))
+	if err != nil {
+		return observation{latency: time.Since(start), at: start, class: p99errors.Unknown, request: request}
+	}
+	for k, v := range request.Headers {
 		req.Header.Set(k, v)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return observation{latency: time.Since(start), at: start, class: p99errors.Classify(err)}
+		return observation{latency: time.Since(start), at: start, class: p99errors.Classify(err), request: request}
 	}
 	defer resp.Body.Close()
 
 	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
-		return observation{latency: time.Since(start), at: start, status: resp.StatusCode, class: p99errors.BodyRead}
+		return observation{latency: time.Since(start), at: start, status: resp.StatusCode, class: p99errors.BodyRead, request: request}
 	}
-	obs := observation{latency: time.Since(start), at: start, status: resp.StatusCode}
-	if !r.statusOK(resp.StatusCode) {
+	obs := observation{latency: time.Since(start), at: start, status: resp.StatusCode, request: request}
+	if !statusOK(resp.StatusCode, request.ExpectedStatus) {
 		obs.class = p99errors.ClassifyStatus(resp.StatusCode)
 	}
 	return obs
 }
 
-func (r HTTPRunner) statusOK(status int) bool {
-	if len(r.Config.ExpectedStatus) == 0 {
+func statusOK(status int, expected []int) bool {
+	if len(expected) == 0 {
 		return status >= 200 && status < 400
 	}
-	for _, want := range r.Config.ExpectedStatus {
+	for _, want := range expected {
 		if status == want {
 			return true
 		}
 	}
 	return false
+}
+
+func requestMix(plan *requestspec.Plan) map[string]*RequestStats {
+	if plan == nil {
+		return nil
+	}
+	mix := map[string]*RequestStats{}
+	for _, req := range plan.Requests {
+		mix[req.Name] = &RequestStats{Name: req.Name, Weight: req.Weight, ErrorBreakdown: map[string]int{}}
+	}
+	return mix
+}
+
+func sortedRequestMix(mix map[string]*RequestStats, plan *requestspec.Plan) []RequestStats {
+	if plan == nil {
+		return nil
+	}
+	out := make([]RequestStats, 0, len(plan.Requests))
+	for _, req := range plan.Requests {
+		stats := mix[req.Name]
+		if len(stats.ErrorBreakdown) == 0 {
+			stats.ErrorBreakdown = nil
+		}
+		out = append(out, *stats)
+	}
+	return out
 }
 
 func sampleURL(raw string) string {
