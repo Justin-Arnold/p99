@@ -10,10 +10,13 @@ Run files contain:
 - histogram buckets
 - slow request samples
 - error breakdown
+- request mix accounting when a request spec was used
 - shape analysis
 - runtime correlation when requested
 
 Durations are stored as nanoseconds.
+
+When a run uses `--request-spec` or `--probe-spec`, the JSON also stores the spec path, base URL, seed, and a `request_mix` section. The mix records each request name, configured weight, selected count, success count, error count, and error breakdown. This helps you confirm that the run exercised the traffic shape you intended.
 
 ## Why Save Runs
 

@@ -12,6 +12,14 @@ During a deploy, configuration change, or local performance experiment, you ofte
 p99 watch --window 5s https://api.example.com/search
 ```
 
+## Watch a Request Mix
+
+```sh
+p99 watch --request-spec requests.yaml --seed 123 --window 5s
+```
+
+Use this when you want the live dashboard to exercise the same weighted search, detail, or write requests that users produce.
+
 ## Flags
 
 ### `--window` and `--duration`
@@ -109,3 +117,21 @@ Use it when watching a Go service and you want latency next to runtime changes.
 Timeout for runtime endpoint requests.
 
 Use it to keep runtime collection from dominating each watch window.
+
+### `--request-spec`
+
+Read a YAML or JSON request spec and use it for each watch window.
+
+Use it when a live check needs more than one static request. With a spec, the URL, method, headers, body, and expected status codes come from the spec file.
+
+### `--base-url`
+
+Override `base_url` from the request spec.
+
+Use it to run the same request mix against a different environment.
+
+### `--seed`
+
+Seed request selection and randomized variables.
+
+Use it to make watch windows repeat the same generated sequence. Omit it when exact replay does not matter.

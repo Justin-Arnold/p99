@@ -11,6 +11,7 @@ import (
 
 	"github.com/Justin-Arnold/p99/internal/output"
 	"github.com/Justin-Arnold/p99/internal/probe"
+	"github.com/Justin-Arnold/p99/internal/requestspec"
 	"github.com/Justin-Arnold/p99/internal/runtimesignal"
 	"github.com/Justin-Arnold/p99/internal/timeutil"
 )
@@ -19,6 +20,8 @@ func runWatch(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("watch", flag.ContinueOnError)
 	var windowText, timeoutText, bodyFile string
 	var runtimeURL, runtimeTimeoutText string
+	var requestSpecPath, baseURL string
+	var seed int64
 	var iterations int
 	var clear bool
 	headers := headerFlags{}
@@ -39,18 +42,30 @@ func runWatch(args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(&clear, "clear", true, "clear the terminal before each refresh")
 	fs.StringVar(&runtimeURL, "runtime", "", "Go runtime base URL for correlation, e.g. http://localhost:8080")
 	fs.StringVar(&runtimeTimeoutText, "runtime-timeout", "5s", "runtime endpoint timeout")
+	fs.StringVar(&requestSpecPath, "request-spec", "", "YAML or JSON request spec for weighted traffic")
+	fs.StringVar(&baseURL, "base-url", "", "override request spec base_url")
+	fs.Int64Var(&seed, "seed", 0, "seed for request spec randomization; 0 generates one")
 
 	valueFlags := map[string]bool{
 		"window": true, "duration": true, "rps": true, "concurrency": true, "timeout": true,
 		"method": true, "H": true, "header": true, "body-file": true, "status": true,
 		"slow-samples": true, "iterations": true, "runtime": true, "runtime-timeout": true,
+		"request-spec": true, "base-url": true, "seed": true,
 	}
 	if err := parse(fs, args, valueFlags); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
-	if fs.NArg() != 1 {
+	if requestSpecPath == "" && fs.NArg() != 1 {
 		fmt.Fprintln(stderr, "watch requires exactly one URL")
+		return 2
+	}
+	if requestSpecPath != "" && fs.NArg() != 0 {
+		fmt.Fprintln(stderr, "watch accepts no URL when --request-spec is used")
+		return 2
+	}
+	if err := rejectSpecOnlyFlags(fs, requestSpecPath, "base-url", "seed"); err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 	window, err := timeutil.ParseDuration(windowText)
@@ -97,6 +112,18 @@ func runWatch(args []string, stdout, stderr io.Writer) int {
 	cfg.Headers = map[string]string(headers)
 	cfg.BodyFile = bodyFile
 	cfg.ExpectedStatus = []int(statuses)
+	var plan *requestspec.Plan
+	if requestSpecPath != "" {
+		if err := rejectRequestSpecConflicts(fs, "method", "H", "header", "body-file", "status"); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		plan, err = loadRequestPlan(requestSpecPath, baseURL, seed, explicitFlags(fs)["seed"], &cfg)
+		if err != nil {
+			fmt.Fprintf(stderr, "request spec: %v\n", err)
+			return 2
+		}
+	}
 
 	var body []byte
 	if bodyFile != "" {
@@ -113,7 +140,7 @@ func runWatch(args []string, stdout, stderr io.Writer) int {
 		if runtimeURL != "" {
 			before, after, err := collectRuntimeWindow(context.Background(), runtimeURL, runtimeTimeout, func() error {
 				var runErr error
-				result, runErr = probe.HTTPRunner{Config: cfg, Body: body}.Run(context.Background())
+				result, runErr = probe.HTTPRunner{Config: cfg, Body: body, RequestPlan: plan}.Run(context.Background())
 				return runErr
 			})
 			if err != nil {
@@ -123,7 +150,7 @@ func runWatch(args []string, stdout, stderr io.Writer) int {
 			correlation := runtimesignal.Correlate(before, after)
 			result.Runtime = &correlation
 		} else {
-			result, err = probe.HTTPRunner{Config: cfg, Body: body}.Run(context.Background())
+			result, err = probe.HTTPRunner{Config: cfg, Body: body, RequestPlan: plan}.Run(context.Background())
 			if err != nil {
 				fmt.Fprintln(stderr, err)
 				return 2
@@ -132,7 +159,11 @@ func runWatch(args []string, stdout, stderr io.Writer) int {
 		if clear {
 			fmt.Fprint(stdout, "\033[H\033[2J")
 		}
-		fmt.Fprintf(stdout, "p99 watch  target=%s  window=%s  refresh=%d\n", cfg.URL, timeutil.FormatDuration(window), i+1)
+		target := cfg.URL
+		if requestSpecPath != "" {
+			target = requestSpecPath
+		}
+		fmt.Fprintf(stdout, "p99 watch  target=%s  window=%s  refresh=%d\n", target, timeutil.FormatDuration(window), i+1)
 		fmt.Fprintf(stdout, "Updated: %s\n\n", result.EndedAt.Format(time.RFC3339))
 		output.WriteSummary(stdout, result)
 		if iterations == 0 {

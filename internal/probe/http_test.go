@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Justin-Arnold/p99/internal/requestspec"
 )
 
 func TestHTTPRunnerSuccess(t *testing.T) {
@@ -216,6 +218,98 @@ func TestHTTPRunnerMixedLatencyDistribution(t *testing.T) {
 		if result.SlowSamples[i].Latency > result.SlowSamples[i-1].Latency {
 			t.Fatalf("slow samples not sorted descending: %#v", result.SlowSamples)
 		}
+	}
+}
+
+func TestHTTPRunnerRequestSpecMixAndSlowSampleNames(t *testing.T) {
+	var searchCount atomic.Int64
+	var detailCount atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/search":
+			searchCount.Add(1)
+			if r.Method != http.MethodPost {
+				t.Errorf("method got %s, want POST", r.Method)
+			}
+			if r.Header.Get("X-P99-Test") == "" {
+				t.Errorf("missing rendered header")
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Errorf("read body: %v", err)
+			}
+			if !strings.Contains(string(body), `"q":`) {
+				t.Errorf("body missing rendered query: %s", body)
+			}
+			time.Sleep(3 * time.Millisecond)
+			w.WriteHeader(http.StatusCreated)
+		case "/detail":
+			detailCount.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	plan, err := requestspec.Compile(requestspec.Spec{
+		Version: requestspec.Version,
+		BaseURL: srv.URL,
+		Defaults: requestspec.Defaults{
+			ExpectStatus: []int{http.StatusNoContent, http.StatusCreated},
+		},
+		Datasets: map[string][]string{"terms": []string{"alpha", "beta"}},
+		Requests: []requestspec.Request{
+			{
+				Name:   "search",
+				Weight: 4,
+				Method: http.MethodPost,
+				Path:   "/search",
+				Query:  map[string]string{"q": "{{ term }}"},
+				Headers: map[string]string{
+					"X-P99-Test": "{{ term }}",
+				},
+				Body: `{"q":"{{ term }}"}`,
+				Vars: map[string]requestspec.Var{
+					"term": {Dataset: "terms"},
+				},
+			},
+			{Name: "detail", Weight: 1, Method: http.MethodGet, Path: "/detail"},
+		},
+	}, "requests.yaml", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := HTTPRunner{
+		Config: HTTPConfig{
+			Duration:    220 * time.Millisecond,
+			RPS:         80,
+			Concurrency: 3,
+			Timeout:     time.Second,
+			SlowSamples: 5,
+			RequestSeed: 7,
+		},
+		RequestPlan: &plan,
+	}.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if searchCount.Load() == 0 || detailCount.Load() == 0 {
+		t.Fatalf("expected both requests, search=%d detail=%d", searchCount.Load(), detailCount.Load())
+	}
+	if len(result.RequestMix) != 2 {
+		t.Fatalf("request mix got %#v", result.RequestMix)
+	}
+	if result.RequestMix[0].Name != "search" || result.RequestMix[0].Weight != 4 {
+		t.Fatalf("unexpected request mix: %#v", result.RequestMix)
+	}
+	if result.RequestMix[0].Count == 0 || result.RequestMix[1].Count == 0 {
+		t.Fatalf("expected counts for both requests: %#v", result.RequestMix)
+	}
+	if len(result.SlowSamples) == 0 || result.SlowSamples[0].Request == "" {
+		t.Fatalf("slow samples missing request name: %#v", result.SlowSamples)
 	}
 }
 
