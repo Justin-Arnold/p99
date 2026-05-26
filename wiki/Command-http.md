@@ -24,6 +24,19 @@ p99 http \
   https://api.example.com/search
 ```
 
+## Complex Request Mix
+
+```sh
+p99 http \
+  --request-spec requests.yaml \
+  --seed 123 \
+  --duration 2m \
+  --rps 100 \
+  --output run.json
+```
+
+Use request specs when one URL is not enough: larger POST bodies, many query parameters, several endpoint shapes, or randomized search terms and filters. See [Request Specs](Request-Specs) for the file format.
+
 ## Flags
 
 ### `--duration`
@@ -241,3 +254,39 @@ p99 http --otel-output run.otlp.json https://api.example.com/search
 ```
 
 Use it when you want to feed run metrics into an OTLP-style pipeline.
+
+### `--request-spec`
+
+Read a YAML or JSON request spec and use it as the traffic shape.
+
+Example:
+
+```sh
+p99 http --request-spec requests.yaml --duration 1m --rps 50
+```
+
+Use it when a realistic probe needs multiple weighted requests or randomized parts. When this flag is set, the request shape comes from the spec, so `p99` rejects a positional URL plus `--method`, `--header`, `-H`, `--body-file`, and `--status`.
+
+### `--base-url`
+
+Override `base_url` from the request spec.
+
+Example:
+
+```sh
+p99 http --request-spec requests.yaml --base-url https://staging.example.com
+```
+
+Use it to keep one reviewed request spec and point it at local, staging, or production targets without editing the file.
+
+### `--seed`
+
+Seed request selection and randomized variables.
+
+Example:
+
+```sh
+p99 http --request-spec requests.yaml --seed 123
+```
+
+Use it when you want to replay the same random sequence later. If omitted or set to `0`, `p99` generates a seed and stores it in the run JSON.
