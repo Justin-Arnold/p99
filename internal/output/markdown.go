@@ -38,6 +38,16 @@ func WriteMarkdown(w io.Writer, result probe.RunResult) {
 			fmt.Fprintf(w, "| %s | %d |\n", key, result.Errors[key])
 		}
 	}
+	if len(result.RequestMix) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "## Request Mix")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "| Request | Weight | Count | Success | Errors |")
+		fmt.Fprintln(w, "| --- | ---: | ---: | ---: | ---: |")
+		for _, req := range result.RequestMix {
+			fmt.Fprintf(w, "| %s | %d | %d | %d | %d |\n", req.Name, req.Weight, req.Count, req.Success, req.Errors)
+		}
+	}
 	if result.Shape.Kind != "" {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "## Shape Analysis")
@@ -80,7 +90,7 @@ func WriteMarkdown(w io.Writer, result probe.RunResult) {
 			if sample.Status != 0 {
 				status = fmt.Sprint(sample.Status)
 			}
-			fmt.Fprintf(w, "| %s | %s | %s | %s | %s %s |\n", sample.Timestamp.Format(time.RFC3339), timeutil.FormatDuration(sample.Latency), status, sample.Error, sample.Method, sample.URL)
+			fmt.Fprintf(w, "| %s | %s | %s | %s | %s %s |\n", sample.Timestamp.Format(time.RFC3339), timeutil.FormatDuration(sample.Latency), status, sample.Error, sampleLabel(sample), sample.URL)
 		}
 	}
 	if result.Runtime != nil {
